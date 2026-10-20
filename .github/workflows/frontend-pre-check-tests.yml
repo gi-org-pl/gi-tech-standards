@@ -1,0 +1,32 @@
+name: frontend-pre-check-tests
+
+# The tests of the front-end pre-check (.github/frontend-pre-check/tests/):
+# outcome derivation, coverage rules, escaping, the gate and the exit status
+# of every publishing mode. No network and no secret: GitHub is replaced by
+# fixtures and a fake gh.
+on:
+  pull_request:
+    paths:
+      - '.github/frontend-pre-check/**'
+      - '.github/workflows/frontend-pre-check*.yml'
+      - 'docs/frontend/pre-check/**'
+
+permissions: {}
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Run the tests
+        run: |
+          python3 -m unittest discover -s .github/frontend-pre-check/tests -v
+          bash .github/frontend-pre-check/tests/test_report.sh
