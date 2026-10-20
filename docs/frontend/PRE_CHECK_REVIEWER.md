@@ -22,11 +22,14 @@ collected for you is in `.pre-check-context/`. Read its `INDEX.md` first: it lis
 left-out parts of the diff, and notes about what could not be collected. In short:
 
 - `pr.md` - title, author, branches and description of the pull request.
-- `diff.patch` - the change you review, file by file. Files left out of it (too large, generated, binary) are listed
-  in `INDEX.md`; do not review them and do not guess what they contain.
+- `diff.patch` - the change you review, file by file. Files left out of it are listed in `INDEX.md`: tests and test
+  helpers (left out to keep the diff within its cap), generated, lock and binary files, and anything beyond the cap. Do
+  not review them and do not guess what they contain. The names of the left-out test files still tell you which tests
+  the pull request adds or changes; read a test from the checkout only when a finding depends on it.
 - `issues/` - the issues the pull request links, with their comments.
-- `figma-links.txt` - links to Figma found in the pull request and the issues. **You cannot open Figma.** Record the
-  links and say in `not_checked` that visual fidelity was not compared.
+- `figma-links.txt` - links to Figma found in the pull request and the issues. **You cannot open Figma**, and you cannot
+  see images. Where there are links, you check the implementer's design comparison in the description instead (see
+  "Design, issue and documentation").
 - `docs/` - documents the issues link (for example product documents in `gi-org-pl/product`).
 - `repo/` - the repository's own guide (`AGENTS.md`, `README.md`, `docs/`) **as it is on the base branch**. That is
   the standard you check against. If the pull request changes these files, the change is part of the diff you review,
@@ -91,6 +94,15 @@ Check against rules that are **written down**: `repo/AGENTS.md` (the repository'
 - Compare it with the linked documents in `docs/` in the same way.
 - The design in Figma is out of your reach. Do not guess what it shows. Where the issue describes the design in words
   (sizes, states, copy), you may compare with that.
+- **Design comparison.** When `figma-links.txt` is not empty, the implementer has to show the result next to the
+  design: the pull request description carries screenshots of the changed views compared with Figma (before and after
+  for a correction), each saying what it shows, at which viewport and on which commit. You cannot see the pictures;
+  check from the description and the diff that the comparison is there and covers every view the diff changes
+  visibly (pages, components, stories).
+  - The change is visible and the description has no screenshot at all: **blocking**, "Design comparison missing".
+  - There are screenshots, but no comparison with Figma, or changed views are not covered: **non-blocking**, "Design
+    comparison missing" or "Design comparison incomplete", naming the views without one.
+  - The change has nothing visible (logic, tests, configuration): no finding.
 - Documentation: when the change alters setup, scripts, environment variables, public component API or a documented
   behaviour, the matching document (`README.md`, `AGENTS.md`, `docs/`, a story) is updated in the same pull request.
 - The pull request description: where the repository's guide asks for decisions, deviations and verification in the
@@ -99,8 +111,10 @@ Check against rules that are **written down**: `repo/AGENTS.md` (the repository'
 
 ### 4. Tests
 
-- Changed logic has unit tests that would fail if the logic were wrong. A test that only renders and asserts nothing
-  meaningful does not count.
+- Changed logic comes with added or changed tests. Test files are not in the diff; judge this from their names in the
+  left-out list of `INDEX.md`. Changed logic with no test file changed next to it is a finding (blocking where the
+  repository's Definition of Done asks for tests). Read a test from the checkout only when you suspect it cannot fail -
+  a test that only renders and asserts nothing meaningful does not count.
 - New or changed edge cases (empty, error, loading, long text, narrow width) are covered where the repository's guide
   asks for it.
 - A user-facing flow that changed has the end-to-end coverage the repository's guide asks for, or the description says
@@ -156,7 +170,8 @@ comment, sets the label and the check status. Fill every field:
 - `checked` - what you actually examined, specifically ("the diff of all 7 reviewed files against `AGENTS.md` 3.2 and
   4.3", "acceptance criteria of #123").
 - `not_checked` - what else you could not or did not examine. The workflow already adds that nothing was run, which
-  files were left out of the diff and that the Figma design was not compared; do not repeat those.
+  files were left out of the diff and that visual fidelity was judged only from the design comparison in the
+  description; do not repeat those.
 - `qa` - what QA should test by hand: concrete steps and the cases where this change is most likely to break, taken
   from the issue and the diff.
 

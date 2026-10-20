@@ -30,9 +30,21 @@ on:
         type: number
         default: 3000
       exclude_paths:
-        description: "Newline-separated bash globs of files never reviewed (generated, lock files)"
+        description: "Newline-separated bash globs, matched against the whole path (* also matches /), of files left out of the diff: tests, test helpers, generated and lock files"
         type: string
         default: |
+          *.test.*
+          *.spec.*
+          __tests__/*
+          */__tests__/*
+          __mocks__/*
+          */__mocks__/*
+          e2e/*
+          */e2e/*
+          *.fixture.*
+          *.fixtures.*
+          setupTests.*
+          */utils/vitest/*
           *.lock
           *package-lock.json
           *pnpm-lock.yaml

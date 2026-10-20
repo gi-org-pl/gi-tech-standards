@@ -200,10 +200,10 @@ body=$(mktemp)
       (if (.not_reviewed | length) > 0 then " Not reviewed: \(.not_reviewed | map("`\(.)`") | join(", "))." else "" end)
     else empty end,
     if ((.excluded + .no_patch) | length) > 0 then
-      "- Left out as generated, lock or binary files, or without a diff: \((.excluded + .no_patch) | map("`\(.)`") | join(", "))."
+      "- Left out of the diff as tests, test helpers, generated, lock or binary files: \((.excluded + .no_patch) | map("`\(.)`") | join(", "))."
     else empty end,
     if (.figma | length) > 0 then
-      "- Visual fidelity against the Figma design - the reviewer cannot open Figma. Links: \([.figma | to_entries[] | "[\(.key + 1)](\(.value))"] | join(" "))."
+      "- Visual fidelity against the Figma design was judged only from the design comparison in the pull request description: the reviewer checks that it is there and covers the changed views, but sees neither Figma nor the images. Figma links: \([.figma | to_entries[] | "[\(.key + 1)](\(.value))"] | join(" "))."
     else empty end,
     (.notes[] | "- \(.)")
   ' "$scope"

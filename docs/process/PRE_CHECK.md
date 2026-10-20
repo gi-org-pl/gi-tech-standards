@@ -37,10 +37,11 @@ summary of decisions, and accepts the pull request or rejects it with suggestion
 
 The reviewer is isolated from the agent that wrote the code. It receives only:
 
-- the diff of the pull request (capped, see [Limits](#limits-and-cost)) and its description,
+- the diff of the pull request (capped, see [Limits](#limits-and-cost)) and its description; tests and test helpers
+  are left out of the diff and listed by name,
 - the linked issues with their comments,
-- the Figma links found in the pull request and the issues - recorded, but **not opened**: the reviewer cannot see
-  Figma and says so in its summary,
+- the Figma links found in the pull request and the issues - recorded, but **not opened**: the reviewer sees neither
+  Figma nor images (see [Design comparison](#design-comparison)),
 - documents in `gi-org-pl/product` that the issues link (the workflow token reads only public repositories besides the
   pull request's own; an issue or a document it cannot read is listed in the summary as not read),
 - these standards (`gi-tech-standards`),
@@ -61,11 +62,27 @@ The full checklist is in [the reviewer instructions](../frontend/PRE_CHECK_REVIE
   hydration mismatches, missing translations, accessibility that breaks use, security,
 - **compliance** with written rules only - the repository's `AGENTS.md` and [front-end standards](../frontend/INDEX.md),
   each finding naming the rule,
-- **design and documentation** - the issue's acceptance criteria, linked documents, documentation updated with the
-  change, a pull request description that matches the diff,
-- **tests** - logic covered by meaningful tests, stories and end-to-end coverage where the repository asks for them.
+- **design and documentation** - the issue's acceptance criteria, linked documents, the design comparison when the
+  issue links Figma, documentation updated with the change, a pull request description that matches the diff,
+- **tests** - changed logic comes with changed tests (judged from the names of the test files, which are not in the
+  diff), stories and end-to-end coverage where the repository asks for them.
 
 It does not comment on naming, file splitting, formatting or anything else no written rule defines.
+
+### Design comparison
+
+The reviewer does not open Figma. When the issue or the pull request links a Figma design, the implementer shows the
+result next to it instead: the pull request description carries screenshots of every changed view compared with the
+Figma frames (before and after for a correction), each saying what it shows, at which viewport and on which commit.
+The reviewer checks that this comparison is there and covers the views the diff changes:
+
+- a visible change with no screenshot at all is a blocking finding,
+- screenshots without the comparison with Figma, or changed views left out, are a non-blocking finding,
+- a change with nothing visible needs no comparison.
+
+The Pre-check comment then says under "What was not checked" that visual fidelity was judged only from the comparison
+in the description. Whether the result looks like the design is decided by the person who reads the description, and
+by QA.
 
 ## The Pre-check comment
 
@@ -77,8 +94,9 @@ One comment per pull request, found again by a hidden marker and updated on ever
   architecture. "None." where the pull request makes no decision of that kind; "Deviation:" where a decision departs
   from the issue or the standard.
 - **What was checked** - the reviewed diff and commit, the linked issues, the standards version and the documents used.
-- **What was not checked** - always runtime behaviour (nothing is built or run), the Figma design when there are links,
-  files left out of the diff, and anything else the reviewer could not examine.
+- **What was not checked** - always runtime behaviour (nothing is built or run); when there are Figma links, that visual
+  fidelity was judged only from the design comparison in the description; the files left out of the diff; and
+  anything else the reviewer could not examine.
 - **For QA** - what to test by hand.
 
 ## When it does not run
@@ -107,7 +125,7 @@ on that subscription. The workflow keeps one review small:
 | Model | `sonnet` | `model` |
 | Maximum agent turns | 60 | `max_turns` |
 | Reviewed diff | 3000 changed lines | `max_diff_lines` |
-| Files never reviewed | lock files, snapshots, minified files, source maps, `dist/` | `exclude_paths` |
+| Files left out of the diff | tests (`*.test.*`, `*.spec.*`, `__tests__/`, `e2e/`), test helpers (`__mocks__/`, `*.fixture(s).*`, `setupTests.*`, `utils/vitest/`), lock files, snapshots, minified files, source maps, `dist/` | `exclude_paths` |
 | Review timeout | 20 minutes (at most 50) | `timeout_minutes` |
 
 A larger pull request is reviewed up to the cap. Its summary says "too large for a full pre-check" and lists the

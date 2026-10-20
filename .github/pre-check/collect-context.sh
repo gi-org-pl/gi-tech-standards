@@ -11,7 +11,9 @@
 #   CTX                 output directory
 #   STANDARDS_DIR       checkout of gi-tech-standards
 #   MAX_DIFF_LINES      changed lines (additions + deletions) reviewed at most
-#   EXCLUDE_PATHS       newline-separated bash globs of files never reviewed
+#   EXCLUDE_PATHS       newline-separated bash globs of files left out of the
+#                       diff (tests, generated and lock files); matched against
+#                       the whole path, where * also matches /
 #   DOC_REPOS           newline-separated owner/name repositories whose linked
 #                       documents are fetched (e.g. gi-org-pl/product)
 #   HEAD_SHA            head commit of the event; the run stops if the pull
@@ -309,7 +311,7 @@ list() { if (( $# )); then printf -- '- `%s`\n' "$@"; else echo "- none"; fi; }
   echo "- \`.pre-check-context/pr.md\` - the pull request and its description"
   echo "- \`.pre-check-context/diff.patch\` - the diff of the reviewed files ($used changed lines)"
   echo "- \`.pre-check-context/issues/\` - linked issues"
-  echo "- \`.pre-check-context/figma-links.txt\` - Figma links (cannot be opened)"
+  echo "- \`.pre-check-context/figma-links.txt\` - Figma links (cannot be opened; check the design comparison in the description)"
   echo "- \`.pre-check-context/docs/\` - linked documents"
   echo "- \`.pre-check-context/repo/\` - the repository's guide on the base branch"
   echo "- \`.pre-check-context/previous-comments.json\` - inline comments of earlier pre-check runs"
@@ -325,7 +327,10 @@ list() { if (( $# )); then printf -- '- `%s`\n' "$@"; else echo "- none"; fi; }
     list "${not_reviewed[@]}"
   fi
   echo
-  echo "## Left out: generated, lock or binary files, or no diff available"
+  echo "## Left out of the diff: tests, test helpers, generated, lock or binary files"
+  echo
+  echo "Their names tell which tests changed; read one from the checkout only when a finding depends on it."
+  echo
   list "${excluded[@]}" "${no_patch[@]}"
   echo
   echo "## Linked issues"
