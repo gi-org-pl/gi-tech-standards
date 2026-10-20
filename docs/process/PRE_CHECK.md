@@ -93,7 +93,7 @@ The `pre-check / gate` job decides, and ends green with a notice when the review
 - the event is a merge queue entry (`merge_group`) - the pull request was pre-checked already.
 
 A skipped `pre-check / review` job counts as passed for a required status check, so a skipped pre-check never blocks a
-merge. When new commits go unreviewed - a fork, a bot or a person without write access pushed them, or the secret is gone -
+merge. If the gate itself fails, the review job runs anyway and fails, so a broken gate cannot pass a required check. When new commits go unreviewed - a fork, a bot or a person without write access pushed them, or the secret is gone -
 the gate also takes the pre-check labels off and replaces an earlier Pre-check comment with "not run for commit ...", so an old "passed"
 does not stand for code nobody pre-checked. The person reviewing is then the only check, as before the pre-check.
 
@@ -114,7 +114,8 @@ A larger pull request is reviewed up to the cap. Its summary says "too large for
 reviewed and the unreviewed files; the result covers only the reviewed ones. GitHub lists at most 3000 files of a pull
 request; the files beyond that are counted as not reviewed. The review timeout is cut to 50 minutes, because the job
 itself stops at 60 and needs the rest to report a review that ran out of time. A newer push cancels a review that is still
-running for the same pull request. The number of turns, the duration, the tokens and the API-price estimate of each run
+running for the same pull request, and a run whose commit is no longer the head of the pull request (a late finish, or a
+re-run of an old run) publishes nothing. The number of turns, the duration, the tokens and the API-price estimate of each run
 are in the job summary of the run (on a subscription the estimate is not money spent).
 
 If a run does not finish - most often because the subscription limit is reached - the Pre-check comment says so and

@@ -13,6 +13,8 @@
 #   EXCLUDE_PATHS       newline-separated bash globs of files never reviewed
 #   DOC_REPOS           newline-separated owner/name repositories whose linked
 #                       documents are fetched (e.g. gi-org-pl/product)
+#   HEAD_SHA            head commit of the event; the run stops if the pull
+#                       request has moved on (a re-run of an old run)
 #   GH_TOKEN            token for the GitHub API (read access is enough)
 set -euo pipefail
 
@@ -34,6 +36,10 @@ notes=()
 gh api "repos/$REPO/pulls/$PR_NUMBER" > "$CTX/pr.json"
 base_sha=$(jq -r '.base.sha' "$CTX/pr.json")
 head_sha=$(jq -r '.head.sha' "$CTX/pr.json")
+if [ -n "${HEAD_SHA:-}" ] && [ "$head_sha" != "$HEAD_SHA" ]; then
+  echo "::error title=Pre-check::This run is for commit ${HEAD_SHA:0:7}, but the pull request is at ${head_sha:0:7} now. The run for the newer commit reviews it."
+  exit 1
+fi
 jq -r '
   "# \(.title)\n",
   "- Pull request: \(.html_url)",

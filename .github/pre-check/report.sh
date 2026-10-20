@@ -14,7 +14,8 @@
 #           the new commits were not pre-checked (SKIP_REASON, HEAD_SHA)
 #
 # Environment: REPO, PR_NUMBER, GH_TOKEN, CTX (context directory),
-# RUN_URL, MODEL, RESULT_JSON and EXECUTION_FILE (report only).
+# HEAD_SHA (the reviewed commit), RUN_URL, MODEL, RESULT_JSON and
+# EXECUTION_FILE (report only).
 set -euo pipefail
 
 : "${REPO:?}" "${PR_NUMBER:?}"
@@ -52,6 +53,18 @@ upsert_comment() {
   fi
 }
 
+# A run publishes nothing once the pull request has moved past the commit it
+# reviewed: the run for the newer commit owns the comment and the labels.
+current_or_exit() {
+  local current
+  [ -n "${HEAD_SHA:-}" ] || return 0
+  current=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha) || return 0
+  if [ "$current" != "$HEAD_SHA" ]; then
+    echo "The pull request moved on from ${HEAD_SHA:0:7} to ${current:0:7}; this result is not published."
+    exit 0
+  fi
+}
+
 # Tokens never belong in a comment, whatever the reviewer was talked into.
 redact() {
   sed -E 's/(sk-ant-[A-Za-z0-9_-]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/[redacted]/g'
@@ -66,6 +79,7 @@ start)
   exit 0
   ;;
 error)
+  current_or_exit
   body=$(mktemp)
   {
     echo "$MARKER"
@@ -201,6 +215,7 @@ body=$(mktemp)
   echo "<sub>AI pre-check of commit \`$head_short\` with model \`${MODEL:-default}\` ([workflow run]($RUN_URL)), following [the reviewer instructions](https://github.com/gi-org-pl/gi-tech-standards/blob/$standards_sha/docs/frontend/PRE_CHECK_REVIEWER.md). The functionality is tested in QA, and a person accepts or rejects the pull request.</sub>"
 } | redact > "$body"
 
+current_or_exit
 upsert_comment "$body"
 
 if [ "$result" = passed ]; then

@@ -144,7 +144,9 @@ jobs:
   review:
     name: review
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    # Also runs, and fails, when the gate failed: a skipped review would count
+    # as passed for a required check.
+    if: ${{ !cancelled() && (needs.gate.result != 'success' || needs.gate.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     # The review step has its own timeout, so that a review that runs out of
     # time still leaves the job the minutes to say so on the pull request.
@@ -164,7 +166,14 @@ jobs:
       TOOLS: ${{ github.workspace }}/.pre-check-context/standards/.github/pre-check
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       MODEL: ${{ inputs.model }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
+      - name: Fail when the gate failed
+        if: needs.gate.result != 'success'
+        run: |
+          echo "::error title=Pre-check::The gate job did not succeed, so nothing was reviewed. Re-run the workflow."
+          exit 1
+
       # The head of the pull request, so that line numbers match the diff. No
       # credentials stay in the checkout; the reviewer has no use for them.
       - name: Check out the pull request
@@ -178,15 +187,13 @@ jobs:
         run: rm -rf "$CTX"
 
       - name: Check out gi-tech-standards
+        id: standards
         uses: actions/checkout@v6
         with:
           repository: gi-org-pl/gi-tech-standards
           ref: ${{ inputs.standards_ref }}
           path: .pre-check-context/standards
           persist-credentials: false
-
-      - name: Reset the labels
-        run: bash "$TOOLS/report.sh" start
 
       - name: Collect the context
         id: context
@@ -209,6 +216,10 @@ jobs:
             echo "$delimiter"
             echo "schema=$(jq -c . "$TOOLS/result.schema.json")"
           } >> "$GITHUB_OUTPUT"
+
+      # After the context step, which stops a run for an outdated commit.
+      - name: Reset the labels
+        run: bash "$TOOLS/report.sh" start
 
       # Claude Code loads the CLAUDE.md files of the directories it reads, and
       # the pull request's versions are no instructions for its reviewer. The
@@ -249,5 +260,5 @@ jobs:
         run: bash "$TOOLS/report.sh" report
 
       - name: Report a run that did not finish
-        if: failure() && steps.report.outputs.posted != 'true'
+        if: failure() && steps.standards.outcome == 'success' && steps.report.outputs.posted != 'true'
         run: bash "$TOOLS/report.sh" error
