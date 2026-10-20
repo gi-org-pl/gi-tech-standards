@@ -125,13 +125,18 @@ refs=$(
     grep -oE '(^|[^A-Za-z0-9_/.-])([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+' <<< "$pr_body" \
       | sed -E 's/^[^A-Za-z0-9#]//' \
       | sed -E "s|^#|$REPO#|" || true
-  } | awk -v max="$MAX_ISSUES" 'NF && !seen[$0]++ && n++ < max'
+  } | awk 'NF && !seen[$0]++'
 ) || true
 
 issues=()
+not_read=()
 links_text="$pr_body"
 while IFS= read -r ref; do
   [ -n "$ref" ] || continue
+  if (( ${#issues[@]} >= MAX_ISSUES )); then
+    not_read+=("$ref")
+    continue
+  fi
   issue_repo=${ref%#*}
   issue_number=${ref#*#}
   if ! issue=$(gh api "repos/$issue_repo/issues/$issue_number" 2> /dev/null); then
@@ -160,6 +165,9 @@ while IFS= read -r ref; do
   issues+=("$ref")
   links_text+=$'\n'"$(cat "$file")"
 done <<< "$refs"
+if (( ${#not_read[@]} )); then
+  notes+=("Only the first $MAX_ISSUES linked issues were read; these further references were not: ${not_read[*]}.")
+fi
 
 # --- Figma links -----------------------------------------------------------
 grep -oE 'https://([a-z]+\.)?figma\.com/[^][()<>"'"'"' `]+' <<< "$links_text" | awk '!seen[$0]++' > "$CTX/figma-links.txt" || true
@@ -179,9 +187,13 @@ fetch_raw() {
   return 1
 }
 docs=()
+skipped_docs=()
 fetch_doc() {
   local repo="$1" ref="$2" path="$3" target
-  (( ${#docs[@]} < MAX_DOC_FILES )) || return 0
+  if (( ${#docs[@]} >= MAX_DOC_FILES )); then
+    skipped_docs+=("$repo/$path")
+    return 0
+  fi
   target="$CTX/docs/$repo/$path"
   mkdir -p "$(dirname "$target")"
   if fetch_raw "repos/$repo/contents/$path?ref=$ref" "$target"; then
@@ -213,6 +225,9 @@ while IFS= read -r doc_repo; do
 done <<< "$DOC_REPOS"
 
 find "$CTX/docs" -type d -empty -delete
+if (( ${#skipped_docs[@]} )); then
+  notes+=("Only the first $MAX_DOC_FILES linked documents were read; not read: ${skipped_docs[*]}.")
+fi
 
 # --- The repository's guide, from the base branch --------------------------
 # Every AGENTS.md and CLAUDE.md at any depth, then at most 40 other documents.

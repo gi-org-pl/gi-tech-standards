@@ -59,7 +59,10 @@ upsert_comment() {
 current_or_exit() {
   local current
   [ -n "${HEAD_SHA:-}" ] || return 0
-  current=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha) || return 0
+  if ! current=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha); then
+    echo "::error title=Pre-check::Could not read the head of the pull request; nothing is published."
+    exit 1
+  fi
   if [ "$current" != "$HEAD_SHA" ]; then
     echo "The pull request moved on from ${HEAD_SHA:0:7} to ${current:0:7}; this result is not published."
     exit 0
