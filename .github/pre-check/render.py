@@ -219,11 +219,16 @@ def main():
 
     outcome = "changes" if blocking else ("human" if human else "passed")
 
-    reviewed = set(scope.get("reviewed", []))
+    hunks = scope.get("hunks", {})
+
+    def in_diff(f):
+        side = f.get("side", "RIGHT")
+        return any(h[side][0] <= f["line"] <= h[side][1] for h in hunks.get(f["path"], []))
+
     inline = []
     for f in findings:
-        if not (f.get("inline") and f.get("line") and f["path"] in reviewed and len(inline) < MAX_INLINE):
-            f["_inline"] = False
+        if not (f.get("inline") and f.get("line") and in_diff(f) and len(inline) < MAX_INLINE):
+            f["_inline"] = None
             continue
         fingerprint = hashlib.sha256(
             (f["path"] + "\n" + " ".join(f["title"].lower().split())).encode("utf-8")
@@ -237,7 +242,7 @@ def main():
         inline.append(
             {"path": f["path"], "line": f["line"], "side": f.get("side", "RIGHT"), "body": body, "fingerprint": fingerprint}
         )
-        f["_inline"] = True
+        f["_inline"] = fingerprint
 
     lines = []
     if outcome == "passed":
@@ -256,7 +261,9 @@ def main():
         lines += ["", "### Findings", ""]
         for f in findings:
             where = code(f["path"] + (":{}".format(f["line"]) if f.get("line") else ""))
-            note = " (inline comment)" if f.get("_inline") else ""
+            # report.sh replaces the marker once it knows whether the comment
+            # was attached; model text cannot contain "<", so it cannot forge one.
+            note = "<!-- inline {} -->".format(f["_inline"]) if f.get("_inline") else ""
             lines.append("- **[{}]** {} - {}{}".format(f["severity"], where, one_line(f["title"], 200), note))
 
     lines += ["", "### Technical decisions in this PR"]

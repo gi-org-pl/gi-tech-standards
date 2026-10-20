@@ -170,6 +170,7 @@ matches_any() {
 # documentation last. Padding the pull request with noise therefore cannot
 # push the code out of the reviewed part, and a cut-off review never passes.
 : > "$CTX/diff.patch"
+hunks_file=$(mktemp)
 reviewed=() not_reviewed=() excluded=() binary=() too_large=() human_paths=() workflow_changes=()
 used=0
 while IFS= read -r entry; do
@@ -201,6 +202,11 @@ while IFS= read -r entry; do
   fi
   used=$(( used + changes ))
   reviewed+=("$name")
+  # The line ranges of the hunks, so that an inline comment is attached only
+  # where GitHub accepts one.
+  jq -c '{path: .filename, hunks: [.patch | scan("@@ -([0-9]+)(?:,([0-9]+))? [+]([0-9]+)(?:,([0-9]+))? @@")
+    | {LEFT: [(.[0] | tonumber), ((.[0] | tonumber) + ((.[1] // "1") | tonumber) - 1)],
+       RIGHT: [(.[2] | tonumber), ((.[2] | tonumber) + ((.[3] // "1") | tonumber) - 1)]}]}' <<< "$entry" >> "$hunks_file"
   jq -r '
     "diff --git a/\(.previous_filename // .filename) b/\(.filename)",
     "status: \(.status), +\(.additions) -\(.deletions)",
@@ -421,11 +427,13 @@ jq -n \
   --argjson docs "$(json_list "${docs[@]}")" \
   --argjson repo_docs "$(json_list "${repo_docs[@]}")" \
   --argjson notes "$(json_list "${notes[@]}")" \
+  --slurpfile hunks "$hunks_file" \
   '{head: $head, base: $base, standards: $standards, max_diff_lines: $max, diff_lines: $used,
     truncated: $truncated, unlisted: $unlisted, reviewed: $reviewed, not_reviewed: $not_reviewed,
     excluded: $excluded, binary: $binary, too_large: $too_large, human_paths: $human_paths,
     workflow_changes: $workflow_changes, issues: $issues, figma: $figma, docs: $docs,
-    repo_docs: $repo_docs, notes: $notes}' > "$CTX/scope.json"
+    repo_docs: $repo_docs, notes: $notes,
+    hunks: ($hunks | map({key: .path, value: .hunks}) | from_entries)}' > "$CTX/scope.json"
 
 # File names cannot contain backticks (checked above), so a fenced block keeps
 # them as data.
@@ -505,5 +513,5 @@ list() {
   echo "Start by reading \`.pre-check-context/INDEX.md\`."
 } > "$CTX/PROMPT.md"
 
-rm -f "$pr_json" "$files_json" "$tree_json"
+rm -f "$pr_json" "$files_json" "$tree_json" "$hunks_file"
 echo "Context collected: ${#reviewed[@]} files reviewed ($used lines), ${#not_reviewed[@]} not reviewed, ${#excluded[@]} excluded, ${#too_large[@]} too large, ${#human_paths[@]} for a person, ${#issues[@]} issues, ${#figma[@]} Figma links, ${#docs[@]} documents."

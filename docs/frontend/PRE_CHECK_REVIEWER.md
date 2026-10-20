@@ -143,8 +143,10 @@ rest of the diff answers.
   consequence for the user), and **fix** - a concrete change; a short code block is fine. The workflow turns code into
   plain code blocks (never one-click suggestions) and removes links, images, HTML and mentions.
 - `inline: true` with `path`, `line` and `side` attaches the finding to the diff: `side: "RIGHT"` and the line number
-  in the new file for added or changed lines, `side: "LEFT"` and the old line number for removed lines. The path must
-  be one of the reviewed files. A finding that cannot be attached to a line (something missing, for example a test or
+  in the new file for added or changed lines, `side: "LEFT"` and the old line number for removed lines - the numbers
+  of the file itself, as in the `@@` hunk headers of `diff.patch` or in the checked-out file, never positions in
+  `diff.patch`. The line must lie inside a hunk of that file, and the path must be one of the reviewed files; anything
+  else is listed in the Pre-check comment only. A finding that cannot be attached to a line (something missing, for example a test or
   a document) has `inline: false`.
 - One finding per problem. When the same problem appears in several places, report the first one and list the other
   places in its body.

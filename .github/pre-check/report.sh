@@ -149,7 +149,6 @@ esac
 
 current_or_exit
 remove_labels
-upsert_comment "$out/comment.md"
 
 # Inline comments, each with a fingerprint of its finding; a finding that an
 # earlier run already commented on, on a line that still exists, is skipped.
@@ -157,20 +156,29 @@ existing=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/comments?per_page=100
   --jq '.[] | select(.user.login == "github-actions[bot]" and .line != null) | .body' \
   | grep -oE 'gi-pre-check-finding [0-9a-f]{16}' | awk '{print $2}' | sort -u) || existing=""
 posted=0 failed=0
+attached=()
 while IFS= read -r item; do
   [ -n "$item" ] || continue
   fingerprint=$(jq -r '.fingerprint' <<< "$item")
+  [[ "$fingerprint" =~ ^[0-9a-f]{16}$ ]] || continue
   if grep -qx "$fingerprint" <<< "$existing"; then
+    attached+=("$fingerprint")
     continue
   fi
   if jq -c --arg commit "$HEAD_SHA" '{commit_id: $commit, path, line, side, body}' <<< "$item" \
     | gh api "repos/$REPO/pulls/$PR_NUMBER/comments" --input - > /dev/null 2>&1; then
     posted=$(( posted + 1 ))
+    attached+=("$fingerprint")
   else
     failed=$(( failed + 1 ))
   fi
 done < <(jq -c '.[]' "$out/inline.json")
 echo "Inline comments: $posted posted, $failed could not be attached (they are listed in the Pre-check comment)."
+for fingerprint in "${attached[@]}"; do
+  sed -i "s/<!-- inline $fingerprint -->/ (inline comment)/" "$out/comment.md"
+done
+sed -i -E 's/<!-- inline [0-9a-f]{16} -->/ (could not be attached to the diff)/' "$out/comment.md"
+upsert_comment "$out/comment.md"
 
 case "$outcome" in
   passed) add_label "$LABEL_PASSED" ;;
