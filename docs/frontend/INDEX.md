@@ -28,3 +28,5 @@ and maintain code quality. If you need to use a different technology, please see
 
 - [Vite Project Boilerplate](https://github.com/Generacja-Innowacja/vite-project-boilerplate)
 - [Claude Rules](CLAUDE.md)
+- [Pre-check reviewer instructions](PRE_CHECK_REVIEWER.md) - what the AI pre-check of every pull request looks for
+  ([process](../process/PRE_CHECK.md))

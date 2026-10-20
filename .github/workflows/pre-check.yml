@@ -1,0 +1,202 @@
+name: pre-check
+
+# Reusable AI pre-check of a front-end pull request. An isolated reviewer reads
+# the diff, the linked issues and documents, these standards and the
+# repository's guide, posts inline comments on real findings and returns a
+# structured result; the job turns it into one "Pre-check" comment, a label
+# and its own status (failure = changes needed).
+#
+# Process and setup: docs/process/PRE_CHECK.md
+# Reviewer instructions: docs/frontend/PRE_CHECK_REVIEWER.md
+#
+# Callers trigger it on pull_request (opened, synchronize, reopened,
+# ready_for_review) and, where a merge queue is used, merge_group; they grant
+# contents: read, pull-requests: write and issues: write, and pass the secret
+# CLAUDE_CODE_OAUTH_TOKEN. Without the secret every run is skipped.
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: "Claude model or alias passed to --model"
+        type: string
+        default: "sonnet"
+      max_turns:
+        description: "Maximum agent turns of one review"
+        type: number
+        default: 40
+      max_diff_lines:
+        description: "Changed lines (additions + deletions) reviewed at most; the rest is listed as not reviewed"
+        type: number
+        default: 3000
+      exclude_paths:
+        description: "Newline-separated bash globs of files never reviewed (generated, lock files)"
+        type: string
+        default: |
+          *.lock
+          *package-lock.json
+          *pnpm-lock.yaml
+          *.snap
+          *.min.js
+          *.map
+          dist/*
+      doc_repos:
+        description: "Newline-separated repositories whose documents linked from the issue are given to the reviewer"
+        type: string
+        default: "gi-org-pl/product"
+      standards_ref:
+        description: "Ref of gi-tech-standards to take the reviewer instructions and scripts from; keep it equal to the ref in uses:"
+        type: string
+        default: "main"
+      timeout_minutes:
+        description: "Timeout of the review job"
+        type: number
+        default: 20
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "OAuth token of the Claude subscription (claude setup-token)"
+        required: false
+
+permissions: {}
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Decide whether to review
+        id: decide
+        env:
+          HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A skipped review job counts as passed for a required status check,
+          # so every reason not to review ends the gate green, with a notice.
+          skip() {
+            echo "::notice title=Pre-check skipped::$1"
+            echo "Pre-check skipped: $1" >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          if [ "$EVENT" != pull_request ]; then
+            skip "the event is $EVENT; the pull request was pre-checked when it was opened or updated."
+          fi
+          if [ "$DRAFT" = true ]; then
+            skip "the pull request is a draft. It is reviewed when it is marked ready for review."
+          fi
+          if [ "$HEAD_REPO" != "$REPO" ]; then
+            skip "the pull request comes from a fork ($HEAD_REPO), where secrets are not available. A person reviews it."
+          fi
+          if [ "$HAS_TOKEN" != true ]; then
+            skip "the secret CLAUDE_CODE_OAUTH_TOKEN is not set, so the pre-check is not enabled in this repository."
+          fi
+          if [ "$AUTHOR_TYPE" = Bot ] || [[ "$ACTOR" == *"[bot]" ]]; then
+            skip "the pull request or the push comes from a bot ($ACTOR)."
+          fi
+          permission=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .permission 2> /dev/null || echo unknown)
+          if [ "$permission" != admin ] && [ "$permission" != write ]; then
+            skip "$ACTOR has $permission access; the reviewer runs only for people with write access."
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+  review:
+    name: review
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    concurrency:
+      group: pre-check-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      GH_TOKEN: ${{ github.token }}
+      CTX: ${{ github.workspace }}/.pre-check-context
+      TOOLS: ${{ github.workspace }}/.pre-check-context/standards/.github/pre-check
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      MODEL: ${{ inputs.model }}
+    steps:
+      # The head of the pull request, so that line numbers match the diff. No
+      # credentials stay in the checkout; the reviewer has no use for them.
+      - name: Check out the pull request
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Clear a context directory the pull request may contain
+        run: rm -rf "$CTX"
+
+      - name: Check out gi-tech-standards
+        uses: actions/checkout@v6
+        with:
+          repository: gi-org-pl/gi-tech-standards
+          ref: ${{ inputs.standards_ref }}
+          path: .pre-check-context/standards
+          persist-credentials: false
+
+      - name: Reset the labels
+        run: bash "$TOOLS/report.sh" start
+
+      - name: Collect the context
+        id: context
+        env:
+          STANDARDS_DIR: ${{ github.workspace }}/.pre-check-context/standards
+          MAX_DIFF_LINES: ${{ inputs.max_diff_lines }}
+          EXCLUDE_PATHS: ${{ inputs.exclude_paths }}
+          DOC_REPOS: ${{ inputs.doc_repos }}
+        run: |
+          bash "$TOOLS/collect-context.sh"
+          delimiter="PROMPT_$(openssl rand -hex 16)"
+          {
+            echo "prompt<<$delimiter"
+            cat "$CTX/PROMPT.md"
+            echo "$delimiter"
+            echo "schema=$(jq -c . "$TOOLS/result.schema.json")"
+          } >> "$GITHUB_OUTPUT"
+
+      # Read-only tools plus inline comments on the diff. No shell, no edits,
+      # no web access; the summary comes back as structured output.
+      - name: Review
+        id: review
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.context.outputs.prompt }}
+          classify_inline_comments: "false"
+          include_fix_links: "false"
+          claude_args: |
+            --model ${{ inputs.model }}
+            --max-turns ${{ inputs.max_turns }}
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment"
+            --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task,Agent"
+            --json-schema '${{ steps.context.outputs.schema }}'
+
+      - name: Publish the result
+        id: report
+        env:
+          RESULT_JSON: ${{ steps.review.outputs.structured_output }}
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+        run: bash "$TOOLS/report.sh" report
+
+      - name: Report a run that did not finish
+        if: failure() && steps.report.outputs.posted != 'true'
+        run: bash "$TOOLS/report.sh" error
