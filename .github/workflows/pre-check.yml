@@ -24,7 +24,7 @@ on:
       max_turns:
         description: "Maximum agent turns of one review"
         type: number
-        default: 40
+        default: 60
       max_diff_lines:
         description: "Changed lines (additions + deletions) reviewed at most; the rest is listed as not reviewed"
         type: number
@@ -49,7 +49,7 @@ on:
         type: string
         default: "main"
       timeout_minutes:
-        description: "Timeout of the review job"
+        description: "Timeout of the review step, in minutes (at most 50: the job stops at 60)"
         type: number
         default: 20
     secrets:
@@ -115,7 +115,9 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ inputs.timeout_minutes }}
+    # The review step has its own timeout, so that a review that runs out of
+    # time still leaves the job the minutes to say so on the pull request.
+    timeout-minutes: 60
     permissions:
       contents: read
       pull-requests: write
@@ -177,6 +179,7 @@ jobs:
       - name: Review
         id: review
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        timeout-minutes: ${{ inputs.timeout_minutes }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}

@@ -41,10 +41,12 @@ The reviewer is isolated from the agent that wrote the code. It receives only:
 - the linked issues with their comments,
 - the Figma links found in the pull request and the issues - recorded, but **not opened**: the reviewer cannot see
   Figma and says so in its summary,
-- documents in `gi-org-pl/product` that the issues link,
+- documents in `gi-org-pl/product` that the issues link (the workflow token reads only public repositories besides the
+  pull request's own; an issue or a document it cannot read is listed in the summary as not read),
 - these standards (`gi-tech-standards`),
-- the repository's own guide - `AGENTS.md`, `README.md`, `docs/` and the pull request template - **as they are on
-  the base branch**, so that a pull request cannot change the rules it is checked against,
+- the repository's own guide - `AGENTS.md` and `CLAUDE.md` files at any depth, `README.md`, `docs/` and the pull
+  request template - **as they are on the base branch**, so that a pull request cannot change the rules it is checked
+  against,
 - its own inline comments from earlier runs, so that it does not repeat them.
 
 It can read files of the checked-out pull request and post inline comments on the diff. It cannot run commands, edit
@@ -101,10 +103,10 @@ on that subscription. The workflow keeps one review small:
 | Setting | Default | Input |
 | --- | --- | --- |
 | Model | `sonnet` | `model` |
-| Maximum agent turns | 40 | `max_turns` |
+| Maximum agent turns | 60 | `max_turns` |
 | Reviewed diff | 3000 changed lines | `max_diff_lines` |
 | Files never reviewed | lock files, snapshots, minified files, source maps, `dist/` | `exclude_paths` |
-| Job timeout | 20 minutes | `timeout_minutes` |
+| Review timeout | 20 minutes (at most 50) | `timeout_minutes` |
 
 A larger pull request is reviewed up to the cap. Its summary says "too large for a full pre-check" and lists the
 reviewed and the unreviewed files; the result covers only the reviewed ones. A newer push cancels a review that is still

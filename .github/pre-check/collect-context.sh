@@ -211,7 +211,7 @@ while IFS= read -r path; do
     repo_docs+=("$path")
   fi
 done < <(gh api "repos/$REPO/git/trees/$base_sha?recursive=1" --jq '.tree[] | select(.type == "blob") | .path' \
-  | grep -E '^(AGENTS\.md|CLAUDE\.md|README\.md|CONTRIBUTING\.md|docs/.*\.mdx?|\.github/pull_request_template\.md)$' || true)
+  | grep -E '(^|/)(AGENTS|CLAUDE)\.md$|^(README\.md|CONTRIBUTING\.md|docs/.*\.mdx?|\.github/pull_request_template\.md)$' || true)
 
 # --- Earlier pre-check comments --------------------------------------------
 gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/comments?per_page=100" | jq -s '

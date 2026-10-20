@@ -89,11 +89,14 @@ result_file=$(mktemp)
 printf '%s' "$RESULT_JSON" > "$result_file"
 jq -e '.result and .decisions and (.findings | type == "array")' "$result_file" > /dev/null
 
+# The result follows from the findings alone: changes needed if and only if
+# at least one of them is blocking.
 blocking=$(jq '[.findings[] | select(.severity == "blocking")] | length' "$result_file")
-result=$(jq -r '.result' "$result_file")
-if [ "$blocking" -gt 0 ] && [ "$result" != changes ]; then
-  echo "::warning::The reviewer returned \"$result\" with $blocking blocking finding(s); treating it as changes needed."
-  result=changes
+returned=$(jq -r '.result' "$result_file")
+result=passed
+[ "$blocking" -eq 0 ] || result=changes
+if [ "$returned" != "$result" ]; then
+  echo "::warning::The reviewer returned \"$returned\" with $blocking blocking finding(s); the result is \"$result\"."
 fi
 
 head_short=$(jq -r '.head[0:7]' "$scope")
@@ -107,11 +110,9 @@ body=$(mktemp)
   if [ "$result" = passed ] && jq -e '.truncated' "$scope" > /dev/null; then
     echo "**Result:** passed for the reviewed files - the pull request is too large for a full pre-check (see below)."
   elif [ "$result" = passed ]; then
-    echo "**Result:** passed - nothing to fix found."
-  elif [ "$blocking" -gt 0 ]; then
-    echo "**Result:** changes needed - $blocking blocking finding(s)."
+    echo "**Result:** passed - no blocking findings."
   else
-    echo "**Result:** changes needed - see the findings below."
+    echo "**Result:** changes needed - $blocking blocking finding(s)."
   fi
   echo
   jq -r '.summary' "$result_file"
