@@ -27,8 +27,8 @@ When conditions from above are fulfilled, you can proceed with the code review p
      _"Implement calculation results cache"._
    - **Description**: Description of the PR is usually not needed at all. Add something in this section only if you feel
      that reviewer should see something or remember something while reviewing the code.
-   - **Labels**: We do not use GitHub labels for pull requests. The only exception are the `pre-check: passed` and
-     `pre-check: changes` labels, which the [pre-check](PRE_CHECK.md) sets by itself.
+   - **Labels**: We do not use GitHub labels for pull requests. The only exception are the `pre-check: ...` labels,
+     which the [pre-check](PRE_CHECK.md) sets by itself; they inform, they do not approve.
    - **Assignee**: Assign yourself as the author of the PR, assign also co-authors.
    - **Verify CI is passing**: Make sure that the CI is passing before creating a PR. If the CI is failing, it means
      that there is something wrong with your code. Fix it before assigning reviewers.
