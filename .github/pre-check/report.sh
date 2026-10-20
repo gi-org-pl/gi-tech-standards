@@ -96,6 +96,7 @@ error)
   exit 0
   ;;
 skipped)
+  current_or_exit
   remove_label "$LABEL_PASSED"
   remove_label "$LABEL_CHANGES"
   id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" \
