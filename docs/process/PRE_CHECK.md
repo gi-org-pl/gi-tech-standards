@@ -20,7 +20,8 @@ summary of decisions, and accepts the pull request or rejects it with suggestion
 
 1. **Implementation.** A developer or an AI agent implements the issue and opens a pull request with a description
    that states decisions, deviations and verification, as the repository's guide asks.
-2. **Pre-check.** When the pull request is opened, updated, reopened or marked ready for review, the reviewer runs:
+2. **Pre-check.** When the pull request is opened, updated, reopened, marked ready for review or its description is
+   edited, the reviewer runs:
    - real findings become inline comments, each with what is wrong, why and how to fix it, labelled with
      [conventional comments](CODE_REVIEW.md#conventional-comments) (`[blocking]` or `[non-blocking]`),
    - one comment headed **Pre-check** summarises the result and the technical decisions,
@@ -149,7 +150,7 @@ name: pre-check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   merge_group:
 
 permissions: {}
@@ -157,6 +158,7 @@ permissions: {}
 jobs:
   pre-check:
     name: pre-check
+    if: github.event.action != 'edited' || github.event.changes.body != null
     permissions:
       contents: read
       pull-requests: write
@@ -165,6 +167,11 @@ jobs:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
+
+The `edited` trigger with the job's `if` re-runs the pre-check when the description changes - it carries the design
+comparison - and ignores edits of the title or the base branch. The filter sits in the caller on purpose: a run
+skipped there creates no `pre-check / review` check, so it cannot replace the last result, while a review skipped by
+the gate would count as passed.
 
 Callers use `@main`: the reviewer then always follows the current standards and instructions, and a change to them is
 reviewed once, here. The price is that a change here reaches every repository at once, so changes to `.github/` and to
