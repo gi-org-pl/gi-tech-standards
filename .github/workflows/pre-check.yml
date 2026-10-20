@@ -1,69 +1,82 @@
 name: pre-check
 
-# Reusable AI pre-check of a front-end pull request. An isolated reviewer reads
-# the diff, the linked issues and documents, these standards and the
-# repository's guide, posts inline comments on real findings and returns a
-# structured result; the job turns it into one "Pre-check" comment, a label
-# and its own status (failure = changes needed).
+# Reusable AI pre-check of a front-end pull request. Process, setup and the
+# security model: docs/process/PRE_CHECK.md. Reviewer instructions:
+# docs/frontend/PRE_CHECK_REVIEWER.md.
 #
-# Process and setup: docs/process/PRE_CHECK.md
-# Reviewer instructions: docs/frontend/PRE_CHECK_REVIEWER.md
+# Three jobs, so that no job holds both the subscription secret and a token
+# that can write:
+#   gate    - decides; no secret, no checkout of the pull request
+#   analyse - the reviewer; the secret, a read-only token, read-only tools,
+#             no way to post anything; returns a structured result
+#   review  - publishes; a write token, no secret, no code of the pull
+#             request; its status is the check to require (pre-check / review)
+#
+# The scripts and the reviewer instructions are always taken from the commit
+# of this workflow file (job.workflow_sha), so pinning the caller's uses: to a
+# SHA pins all of it.
 #
 # Callers trigger it on pull_request (opened, synchronize, reopened,
-# ready_for_review) and, where a merge queue is used, merge_group; they grant
-# contents: read, pull-requests: write and issues: write, and pass the secret
-# CLAUDE_CODE_OAUTH_TOKEN. Without the secret every run is skipped.
+# ready_for_review, converted_to_draft, edited) and merge_group, grant
+# contents: read, pull-requests: write, issues: write and actions: read, and
+# pass the secret CLAUDE_CODE_OAUTH_TOKEN. Without the secret every run is
+# skipped.
 
 on:
   workflow_call:
     inputs:
       model:
-        description: "Claude model or alias passed to --model"
+        description: "Claude model or alias passed to --model (letters, digits, '.', '_', '-')"
         type: string
         default: "sonnet"
       max_turns:
-        description: "Maximum agent turns of one review"
+        description: "Maximum agent turns of one review (1-200)"
         type: number
         default: 60
       max_diff_lines:
-        description: "Changed lines (additions + deletions) reviewed at most; the rest is listed as not reviewed"
+        description: "Changed lines reviewed at most (100-20000); a pull request over the cap needs a person"
         type: number
         default: 3000
       exclude_paths:
-        description: "Newline-separated bash globs, matched against the whole path (* also matches /), of files left out of the diff: tests, test helpers, generated and lock files"
+        description: "Newline-separated bash globs, matched against the whole path (* also matches /), of files left out of the diff; anchor them on suffixes or whole directory names"
         type: string
         default: |
-          *.test.*
-          *.spec.*
+          *.test.ts
+          *.test.tsx
+          *.test.js
+          *.test.jsx
+          *.spec.ts
+          *.spec.tsx
+          *.spec.js
+          *.spec.jsx
           __tests__/*
           */__tests__/*
           __mocks__/*
           */__mocks__/*
           e2e/*
-          */e2e/*
-          *.fixture.*
-          *.fixtures.*
-          setupTests.*
-          */utils/vitest/*
-          *.lock
-          *package-lock.json
-          *pnpm-lock.yaml
+          *.fixture.ts
+          *.fixtures.ts
+          setupTests.ts
+          src/utils/vitest/*
           *.snap
-          *.min.js
-          *.map
-          dist/*
+          yarn.lock
+          */yarn.lock
+          package-lock.json
+          */package-lock.json
+          pnpm-lock.yaml
+          */pnpm-lock.yaml
       doc_repos:
-        description: "Newline-separated repositories whose documents linked from the issue are given to the reviewer"
+        description: "Newline-separated repositories of the same organisation whose documents linked from the issue are given to the reviewer"
         type: string
         default: "gi-org-pl/product"
-      standards_ref:
-        description: "Ref of gi-tech-standards to take the reviewer instructions and scripts from; keep it equal to the ref in uses:"
-        type: string
-        default: "main"
       timeout_minutes:
-        description: "Timeout of the review step, in minutes; values above 50 are cut to 50 (the job stops at 60)"
+        description: "Timeout of the review step, in minutes (1-50; the job stops at 60)"
         type: number
         default: 20
+      max_runs_per_hour:
+        description: "Pre-check runs of one pull request in the last hour above which a run stops (1-60)"
+        type: number
+        default: 8
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: "OAuth token of the Claude subscription (claude setup-token)"
@@ -80,70 +93,129 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+      actions: read
+    # A burst of events on one pull request (an edit storm) cancels the
+    # waiting gates; only the last one goes on.
+    concurrency:
+      group: pre-check-gate-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
     outputs:
-      run: ${{ steps.decide.outputs.run }}
+      verdict: ${{ steps.decide.outputs.verdict }}
+      reason: ${{ steps.decide.outputs.reason }}
     steps:
+      - name: Check the inputs and the workflow commit
+        env:
+          MODEL: ${{ inputs.model }}
+          MAX_TURNS: ${{ inputs.max_turns }}
+          MAX_DIFF_LINES: ${{ inputs.max_diff_lines }}
+          TIMEOUT: ${{ inputs.timeout_minutes }}
+          MAX_RUNS: ${{ inputs.max_runs_per_hour }}
+          EXCLUDE_PATHS: ${{ inputs.exclude_paths }}
+          DOC_REPOS: ${{ inputs.doc_repos }}
+          REPO: ${{ github.repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+        run: |
+          # The inputs end up in the reviewer's command line; nothing but the
+          # expected shapes may pass.
+          fail() { echo "::error title=Pre-check::Invalid setting: $1"; exit 1; }
+          in_range() { [[ "$1" =~ ^[0-9]{1,6}$ ]] && (( $1 >= $2 && $1 <= $3 )); }
+          [[ "$MODEL" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || fail "model"
+          in_range "$MAX_TURNS" 1 200 || fail "max_turns"
+          in_range "$MAX_DIFF_LINES" 100 20000 || fail "max_diff_lines"
+          in_range "$TIMEOUT" 1 50 || fail "timeout_minutes"
+          in_range "$MAX_RUNS" 1 60 || fail "max_runs_per_hour"
+          while IFS= read -r pattern; do
+            [ -z "$pattern" ] || [[ "$pattern" =~ ^[A-Za-z0-9._*?/-]{1,200}$ ]] || fail "exclude_paths"
+          done <<< "$EXCLUDE_PATHS"
+          while IFS= read -r doc_repo; do
+            [ -z "$doc_repo" ] || [[ "$doc_repo" =~ ^${REPO%/*}/[A-Za-z0-9._-]+$ ]] || fail "doc_repos"
+          done <<< "$DOC_REPOS"
+          [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "job.workflow_sha is empty; the scripts cannot be pinned"
+          [[ "$WORKFLOW_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "job.workflow_repository"
+
       - name: Decide whether to review
         id: decide
         env:
           HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
           EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
           DRAFT: ${{ github.event.pull_request.draft }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
           REPO: ${{ github.repository }}
           AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
           ACTOR: ${{ github.actor }}
+          CALLER_REF: ${{ github.workflow_ref }}
+          MAX_RUNS: ${{ inputs.max_runs_per_hour }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          # A skipped review job counts as passed for a required status check,
-          # so every reason not to review ends the gate green, with a notice.
-          # When new commits go unreviewed (fork, bot, no write access, no
-          # secret), the result of an earlier run is withdrawn as well (next
-          # steps).
-          skip() {
-            echo "::notice title=Pre-check skipped::$1"
-            echo "Pre-check skipped: $1" >> "$GITHUB_STEP_SUMMARY"
-            echo "run=false" >> "$GITHUB_OUTPUT"
+          # verdict=skip: nothing to review; the review job is skipped, which
+          #   counts as passed for a required check. When new commits go
+          #   unreviewed, the result of an earlier run is withdrawn (stale).
+          # verdict=block: this run must not stand for the commit (superseded
+          #   or over the run limit); the review job fails.
+          # verdict=run: review.
+          finish() {
+            echo "::notice title=Pre-check::$2"
+            echo "Pre-check: $2" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "verdict=$1"
+              echo "reason=$2"
+              echo "stale=${3:-false}"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           }
-          skip_unreviewed() {
-            echo "stale=true" >> "$GITHUB_OUTPUT"
-            echo "reason=$1" >> "$GITHUB_OUTPUT"
-            skip "$1"
-          }
           if [ "$EVENT" != pull_request ]; then
-            skip "the event is $EVENT; the pull request was pre-checked when it was opened or updated."
-          fi
-          if [ "$DRAFT" = true ]; then
-            skip "the pull request is a draft. It is reviewed when it is marked ready for review."
+            finish skip "the event is $EVENT; the pull request was pre-checked when it was opened or updated."
           fi
           if [ "$HEAD_REPO" != "$REPO" ]; then
-            skip_unreviewed "the pull request comes from a fork ($HEAD_REPO), where secrets are not available. A person reviews it."
+            finish skip "the pull request comes from a fork, where secrets are not available. A person reviews it." true
+          fi
+          if [ "$DRAFT" = true ]; then
+            finish skip "the pull request is a draft. It is reviewed when it is marked ready for review." true
           fi
           if [ "$HAS_TOKEN" != true ]; then
-            skip_unreviewed "the secret CLAUDE_CODE_OAUTH_TOKEN is not set, so the pre-check is not enabled in this repository."
+            finish skip "the secret CLAUDE_CODE_OAUTH_TOKEN is not set, so the pre-check is not enabled in this repository." true
           fi
           if [ "$AUTHOR_TYPE" = Bot ] || [[ "$ACTOR" == *"[bot]" ]]; then
-            skip_unreviewed "the pull request or the push comes from a bot ($ACTOR). A person reviews it."
+            finish skip "the pull request or the push comes from a bot. A person reviews it." true
           fi
+          # Cost control, not a trust boundary: the actor only triggered the
+          # event; the content may come from anyone.
           permission=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .permission 2> /dev/null || echo unknown)
           if [ "$permission" != admin ] && [ "$permission" != write ]; then
-            skip_unreviewed "$ACTOR has $permission access; the reviewer runs only for people with write access. A person reviews it."
+            finish skip "the person who triggered the run has no write access. A person reviews the pull request." true
           fi
-          echo "run=true" >> "$GITHUB_OUTPUT"
+          if [ "$ACTION" = edited ]; then
+            # Debounce: a newer edit within this time cancels this gate.
+            sleep 30
+          fi
+          workflow_path=${CALLER_REF#"$REPO/"}
+          workflow_path=${workflow_path%%@*}
+          [[ "$workflow_path" =~ ^[A-Za-z0-9._/-]+$ ]] || workflow_path=unknown
+          since=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)
+          branch=$(jq -rn --arg ref "$HEAD_REF" '$ref | @uri')
+          runs=$(gh api "repos/$REPO/actions/runs?event=pull_request&branch=$branch&created=%3E%3D$since&per_page=100" \
+            --jq "[.workflow_runs[] | select(.path == \"$workflow_path\" and .conclusion != \"skipped\")] | length" 2> /dev/null || echo 0)
+          if [[ "$runs" =~ ^[0-9]+$ ]] && (( runs > MAX_RUNS )); then
+            finish block "this pull request had $runs pre-check runs in the last hour, more than $MAX_RUNS. Re-run the job later."
+          fi
+          finish run "reviewing."
 
       - name: Check out the pre-check scripts
-        if: steps.decide.outputs.stale == 'true'
-        uses: actions/checkout@v6
+        if: steps.decide.outputs.stale == 'true' || steps.decide.outputs.verdict == 'run'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          repository: gi-org-pl/gi-tech-standards
-          ref: ${{ inputs.standards_ref }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           sparse-checkout: .github/pre-check
           persist-credentials: false
+          path: .pre-check-tools
 
       # Best effort: a fork's token is read-only, and a skipped run must not
-      # turn red because of this clean-up (for example while the secret is
-      # missing). An unreviewed commit still needs a person's approval.
+      # turn red because of this clean-up. An unreviewed commit still needs a
+      # person's approval, and automation reads the check run, not the label.
       - name: Withdraw the result of an earlier run
         if: steps.decide.outputs.stale == 'true'
         continue-on-error: true
@@ -153,59 +225,72 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SKIP_REASON: ${{ steps.decide.outputs.reason }}
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/pre-check/report.sh skipped
+        run: bash .pre-check-tools/.github/pre-check/report.sh skipped
 
-  review:
-    name: review
+      - name: Take the labels off before the review
+        if: steps.decide.outputs.verdict == 'run'
+        env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .pre-check-tools/.github/pre-check/report.sh start
+
+  analyse:
+    name: analyse
     needs: gate
-    # Also runs, and fails, when the gate failed: a skipped review would count
-    # as passed for a required check.
-    if: ${{ !cancelled() && (needs.gate.result != 'success' || needs.gate.outputs.run == 'true') }}
+    if: needs.gate.outputs.verdict == 'run'
     runs-on: ubuntu-latest
-    # The review step has its own timeout, so that a review that runs out of
-    # time still leaves the job the minutes to say so on the pull request.
     timeout-minutes: 60
+    # Read-only: whatever the reviewer is talked into, this token cannot
+    # change anything on GitHub.
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
+      pull-requests: read
+      issues: read
     concurrency:
-      group: pre-check-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: pre-check-analyse-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
       REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      GH_TOKEN: ${{ github.token }}
-      CTX: ${{ github.workspace }}/.pre-check-context
-      TOOLS: ${{ github.workspace }}/.pre-check-context/standards/.github/pre-check
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      MODEL: ${{ inputs.model }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      CTX: ${{ github.workspace }}/.pre-check-context
+    outputs:
+      result: ${{ steps.review.outputs.structured_output }}
+      scope: ${{ steps.context.outputs.scope }}
+      abort: ${{ steps.context.outputs.abort }}
+      usage: ${{ steps.usage.outputs.usage }}
     steps:
-      - name: Fail when the gate failed
-        if: needs.gate.result != 'success'
-        run: |
-          echo "::error title=Pre-check::The gate job did not succeed, so nothing was reviewed. Re-run the workflow."
-          exit 1
-
-      # The head of the pull request, so that line numbers match the diff. No
-      # credentials stay in the checkout; the reviewer has no use for them.
+      # The head of the pull request, so that line numbers match the diff. It
+      # is read by the reviewer as data; nothing from it is executed, and no
+      # credentials stay in it.
       - name: Check out the pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Clear a context directory the pull request may contain
-        run: rm -rf "$CTX"
+      # Symbolic links could point the reviewer's read tools at
+      # /proc/self/environ or the runner's files. Agent configuration of the
+      # pull request (CLAUDE.md, AGENTS.md, .claude/, .mcp.json at any depth)
+      # is no instruction for its reviewer; the base-branch guides are in the
+      # context, and the action restores the root files from the base branch.
+      - name: Remove links and agent configuration from the checkout
+        run: |
+          find . -path ./.git -prune -o -type l -print -exec rm -f {} +
+          find . -path ./.git -prune -o \
+            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md -o -name .mcp.json -o -name .claude.json \) \
+            -type f -print -exec rm -f {} +
+          find . -path ./.git -prune -o -name .claude -type d -prune -print -exec rm -rf {} +
+          rm -rf "$CTX"
 
-      - name: Check out gi-tech-standards
-        id: standards
-        uses: actions/checkout@v6
+      - name: Check out gi-tech-standards at the commit of this workflow
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          repository: gi-org-pl/gi-tech-standards
-          ref: ${{ inputs.standards_ref }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .pre-check-context/standards
           persist-credentials: false
 
@@ -216,63 +301,127 @@ jobs:
           MAX_DIFF_LINES: ${{ inputs.max_diff_lines }}
           EXCLUDE_PATHS: ${{ inputs.exclude_paths }}
           DOC_REPOS: ${{ inputs.doc_repos }}
-          TIMEOUT: ${{ inputs.timeout_minutes }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$TOOLS/collect-context.sh"
-          # The job stops at 60 minutes; the review gets at most 50 of them,
-          # so that a review that runs out of time can still be reported.
-          timeout=$(( TIMEOUT < 1 ? 1 : TIMEOUT > 50 ? 50 : TIMEOUT ))
-          echo "timeout=$timeout" >> "$GITHUB_OUTPUT"
+          status=0
+          bash "$STANDARDS_DIR/.github/pre-check/collect-context.sh" || status=$?
+          if [ -f "$CTX/abort" ]; then
+            echo "abort=$(tr -cd 'a-z_' < "$CTX/abort")" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          [ "$status" -eq 0 ] || exit "$status"
           delimiter="PROMPT_$(openssl rand -hex 16)"
           {
             echo "prompt<<$delimiter"
             cat "$CTX/PROMPT.md"
             echo "$delimiter"
-            echo "schema=$(jq -c . "$TOOLS/result.schema.json")"
+            echo "schema=$(jq -c . "$STANDARDS_DIR/.github/pre-check/result.schema.json")"
+            echo "scope=$(jq -c . "$CTX/scope.json")"
           } >> "$GITHUB_OUTPUT"
 
-      # After the context step, which stops a run for an outdated commit.
-      - name: Reset the labels
-        run: bash "$TOOLS/report.sh" start
-
-      # Claude Code loads the CLAUDE.md files of the directories it reads, and
-      # the pull request's versions are no instructions for its reviewer. The
-      # base-branch guides are in .pre-check-context/repo/; the action restores
-      # the root CLAUDE.md and .claude/ from the base branch by itself.
-      - name: Remove agent instructions the pull request carries
-        run: |
-          find . \( -path ./.git -o -path ./.pre-check-context \) -prune -o \
-            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \) \( -type f -o -type l \) \
-            -print -exec rm -f {} +
-          find . \( -path ./.git -o -path ./.pre-check-context \) -prune -o \
-            -name .claude \( -type d -o -type l \) -print -exec rm -rf {} +
-
-      # Read-only tools plus inline comments on the diff. No shell, no edits,
-      # no web access; the summary comes back as structured output.
+      # Read tools confined to the workspace (and denied the runner's own
+      # files), no shell, no edits, no web, no MCP servers, no hooks, no
+      # project settings. The reviewer cannot post anything: its findings come
+      # back as structured output, which the review job escapes and publishes.
       - name: Review
         id: review
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
-        timeout-minutes: ${{ fromJSON(steps.context.outputs.timeout) }}
+        timeout-minutes: ${{ inputs.timeout_minutes }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: ${{ steps.context.outputs.prompt }}
+          settings: '{"disableAllHooks": true}'
           classify_inline_comments: "false"
           include_fix_links: "false"
           claude_args: |
             --model ${{ inputs.model }}
             --max-turns ${{ inputs.max_turns }}
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment"
-            --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task,Agent"
+            --setting-sources user
+            --strict-mcp-config
+            --allowedTools "Read(./**),Glob,Grep"
+            --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task,Agent,Skill,SlashCommand,BashOutput,KillShell,Read(./.git/**),Read(//proc/**),Read(//sys/**),Read(//etc/**),Read(//tmp/**),Read(//run/**),Read(//var/**),Read(//root/**),Read(~/.claude/**),Read(~/.claude.json),Read(~/.config/**),Read(~/.local/**),Read(~/.ssh/**),Read(~/.npmrc),Read(~/.gitconfig),Read(~/work/_temp/**),Read(~/work/_actions/**)"
             --json-schema '${{ steps.context.outputs.schema }}'
 
-      - name: Publish the result
-        id: report
+      # Only numbers leave this job; the execution log itself is not uploaded.
+      - name: Record the usage
+        id: usage
+        if: always() && steps.review.outputs.execution_file != ''
         env:
-          RESULT_JSON: ${{ steps.review.outputs.structured_output }}
           EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
-        run: bash "$TOOLS/report.sh" report
+        run: |
+          usage=$(jq -c '[.[] | select(.type == "result")] | last
+            | {num_turns, duration_ms, total_cost_usd, permission_denials_count: ((.permission_denials // []) | length),
+               usage: {input_tokens: .usage.input_tokens, output_tokens: .usage.output_tokens,
+                       cache_read_input_tokens: .usage.cache_read_input_tokens,
+                       cache_creation_input_tokens: .usage.cache_creation_input_tokens}}
+            | walk(if type == "string" then null else . end)' "$EXECUTION_FILE" 2> /dev/null || echo '{}')
+          echo "usage=$usage" >> "$GITHUB_OUTPUT"
+          echo "Usage: $usage"
 
-      - name: Report a run that did not finish
-        if: failure() && steps.standards.outcome == 'success' && steps.report.outputs.posted != 'true'
-        run: bash "$TOOLS/report.sh" error
+  review:
+    name: review
+    needs: [gate, analyse]
+    # Also runs, and fails, when the gate failed or blocked the run: a skipped
+    # review would count as passed for a required check.
+    if: ${{ !cancelled() && (needs.gate.result != 'success' || needs.gate.outputs.verdict != 'skip') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    concurrency:
+      group: pre-check-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      MODEL: ${{ inputs.model }}
+    steps:
+      - name: Check out the pre-check scripts
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          sparse-checkout: .github/pre-check
+          persist-credentials: false
+          path: .pre-check-tools
+
+      - name: Publish
+        env:
+          GATE: ${{ needs.gate.result }}
+          VERDICT: ${{ needs.gate.outputs.verdict }}
+          ANALYSE: ${{ needs.analyse.result }}
+          ABORT: ${{ needs.analyse.outputs.abort }}
+          RESULT_JSON: ${{ needs.analyse.outputs.result }}
+          SCOPE_JSON: ${{ needs.analyse.outputs.scope }}
+          USAGE_JSON: ${{ needs.analyse.outputs.usage }}
+          STANDARDS_SHA: ${{ job.workflow_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tools=.pre-check-tools/.github/pre-check
+          # report.sh error exits 1 (and so ends this step), or 0 when the pull
+          # request has moved on; either way nothing else is published.
+          if [ "$GATE" != success ]; then
+            REASON=gate bash "$tools/report.sh" error
+            exit 0
+          fi
+          if [ "$VERDICT" = block ]; then
+            echo "This run does not stand for the commit; see the gate job. Nothing is published."
+            exit 1
+          fi
+          if [ "$ANALYSE" = cancelled ]; then
+            echo "The review was superseded by a newer run. Nothing is published."
+            exit 1
+          fi
+          if [ "$ANALYSE" != success ] || [ -z "$RESULT_JSON" ] || [ -z "$SCOPE_JSON" ]; then
+            REASON="${ABORT:-failed}" bash "$tools/report.sh" error
+            exit 0
+          fi
+          work=$(mktemp -d)
+          printf '%s' "$RESULT_JSON" > "$work/result.json"
+          printf '%s' "$SCOPE_JSON" > "$work/scope.json"
+          RESULT_FILE="$work/result.json" SCOPE_FILE="$work/scope.json" bash "$tools/report.sh" report
