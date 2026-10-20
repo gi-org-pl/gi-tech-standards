@@ -85,8 +85,9 @@ jobs:
         run: |
           # A skipped review job counts as passed for a required status check,
           # so every reason not to review ends the gate green, with a notice.
-          # When new commits go unreviewed (fork, bot, no write access), the
-          # result of an earlier run is withdrawn as well (next steps).
+          # When new commits go unreviewed (fork, bot, no write access, no
+          # secret), the result of an earlier run is withdrawn as well (next
+          # steps).
           skip() {
             echo "::notice title=Pre-check skipped::$1"
             echo "Pre-check skipped: $1" >> "$GITHUB_STEP_SUMMARY"
@@ -108,7 +109,7 @@ jobs:
             skip_unreviewed "the pull request comes from a fork ($HEAD_REPO), where secrets are not available. A person reviews it."
           fi
           if [ "$HAS_TOKEN" != true ]; then
-            skip "the secret CLAUDE_CODE_OAUTH_TOKEN is not set, so the pre-check is not enabled in this repository."
+            skip_unreviewed "the secret CLAUDE_CODE_OAUTH_TOKEN is not set, so the pre-check is not enabled in this repository."
           fi
           if [ "$AUTHOR_TYPE" = Bot ] || [[ "$ACTOR" == *"[bot]" ]]; then
             skip_unreviewed "the pull request or the push comes from a bot ($ACTOR). A person reviews it."
@@ -216,9 +217,10 @@ jobs:
       - name: Remove agent instructions the pull request carries
         run: |
           find . \( -path ./.git -o -path ./.pre-check-context \) -prune -o \
-            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \) -type f -print -exec rm -f {} +
+            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \) \( -type f -o -type l \) \
+            -print -exec rm -f {} +
           find . \( -path ./.git -o -path ./.pre-check-context \) -prune -o \
-            -name .claude -type d -print -exec rm -rf {} +
+            -name .claude \( -type d -o -type l \) -print -exec rm -rf {} +
 
       # Read-only tools plus inline comments on the diff. No shell, no edits,
       # no web access; the summary comes back as structured output.

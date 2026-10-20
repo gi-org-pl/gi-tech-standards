@@ -93,8 +93,8 @@ The `pre-check / gate` job decides, and ends green with a notice when the review
 - the event is a merge queue entry (`merge_group`) - the pull request was pre-checked already.
 
 A skipped `pre-check / review` job counts as passed for a required status check, so a skipped pre-check never blocks a
-merge. When new commits go unreviewed - a fork, a bot or a person without write access pushed them - the gate also takes
-the pre-check labels off and replaces an earlier Pre-check comment with "not run for commit ...", so an old "passed"
+merge. When new commits go unreviewed - a fork, a bot or a person without write access pushed them, or the secret is gone -
+the gate also takes the pre-check labels off and replaces an earlier Pre-check comment with "not run for commit ...", so an old "passed"
 does not stand for code nobody pre-checked. The person reviewing is then the only check, as before the pre-check.
 
 ## Limits and cost
@@ -198,7 +198,8 @@ makes the check pass) does not exist yet.
   attempt to steer it as a blocking finding. Its tools are read-only, it has no shell and no web access, and the
   workflow redacts token-like strings from the summary before posting it.
 - The reviewer instructions and the scripts are taken from this repository, never from the pull request. Agent
-  instruction files of the pull request (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.claude/` at any depth) are
+  instruction files of the pull request (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.claude/` at any depth, also as
+  symbolic links) are
   removed from the checkout before the reviewer starts, because Claude Code would load them as instructions; the
   base-branch versions are in the context, and the action restores the root `CLAUDE.md`, `.claude/` and `.mcp.json`
   from the base branch.

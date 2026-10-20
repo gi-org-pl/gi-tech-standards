@@ -210,6 +210,10 @@ find "$CTX/docs" -type d -empty -delete
 
 # --- The repository's guide, from the base branch --------------------------
 # Every AGENTS.md and CLAUDE.md at any depth, then at most 40 other documents.
+gh api "repos/$REPO/git/trees/$base_sha?recursive=1" > "$CTX/tree.json"
+if jq -e '.truncated' "$CTX/tree.json" > /dev/null; then
+  notes+=("The base branch has too many files to list at once; guide files beyond the listed part may be missing from the context.")
+fi
 repo_docs=()
 other_docs=0
 while IFS= read -r path; do
@@ -222,7 +226,7 @@ while IFS= read -r path; do
   if fetch_raw "repos/$REPO/contents/$path?ref=$base_sha" "$CTX/repo/$path"; then
     repo_docs+=("$path")
   fi
-done < <(gh api "repos/$REPO/git/trees/$base_sha?recursive=1" --jq '.tree[] | select(.type == "blob") | .path' \
+done < <(jq -r '.tree[] | select(.type == "blob") | .path' "$CTX/tree.json" \
   | grep -E '(^|/)(AGENTS|CLAUDE)\.md$|^(README\.md|CONTRIBUTING\.md|docs/.*\.mdx?|\.github/pull_request_template\.md)$' || true)
 
 # --- Earlier pre-check comments --------------------------------------------
@@ -321,6 +325,6 @@ list() { if (( $# )); then printf -- '- `%s`\n' "$@"; else echo "- none"; fi; }
 } > "$CTX/PROMPT.md"
 
 # Only the rendered files are meant for the reviewer.
-rm -f "$CTX/pr.json" "$CTX/files.json"
+rm -f "$CTX/pr.json" "$CTX/files.json" "$CTX/tree.json"
 
 echo "Context collected: ${#reviewed[@]} files reviewed ($used lines), ${#not_reviewed[@]} not reviewed, ${#excluded[@]} excluded, ${#issues[@]} issues, ${#figma[@]} Figma links, ${#docs[@]} documents."
