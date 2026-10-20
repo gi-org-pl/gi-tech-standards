@@ -158,7 +158,7 @@ permissions: {}
 jobs:
   pre-check:
     name: pre-check
-    if: github.event.action != 'edited' || github.event.changes.body != null
+    if: github.event.action != 'edited' || github.event.changes.body != null || github.event.changes.base != null
     permissions:
       contents: read
       pull-requests: write
@@ -169,7 +169,8 @@ jobs:
 ```
 
 The `edited` trigger with the job's `if` re-runs the pre-check when the description changes - it carries the design
-comparison - and ignores edits of the title or the base branch. The filter sits in the caller on purpose: a run
+comparison - or the pull request gets a new base branch, which changes the diff and the guide it is checked against;
+edits of the title alone start nothing. The filter sits in the caller on purpose: a run
 skipped there creates no `pre-check / review` check, so it cannot replace the last result, while a review skipped by
 the gate would count as passed.
 
