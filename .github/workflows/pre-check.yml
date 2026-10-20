@@ -394,6 +394,7 @@ jobs:
         env:
           GATE: ${{ needs.gate.result }}
           VERDICT: ${{ needs.gate.outputs.verdict }}
+          GATE_REASON: ${{ needs.gate.outputs.reason }}
           ANALYSE: ${{ needs.analyse.result }}
           ABORT: ${{ needs.analyse.outputs.abort }}
           RESULT_JSON: ${{ needs.analyse.outputs.result }}
@@ -405,12 +406,20 @@ jobs:
           tools=.pre-check-tools/.github/pre-check
           # report.sh error exits 1 (and so ends this step), or 0 when the pull
           # request has moved on; either way nothing else is published.
+          # A gate cancelled by a newer event: that run reports, this one
+          # publishes nothing and does not pass.
+          if [ "$GATE" = cancelled ]; then
+            echo "The gate was superseded by a newer run. Nothing is published."
+            exit 1
+          fi
           if [ "$GATE" != success ]; then
             REASON=gate bash "$tools/report.sh" error
             exit 0
           fi
           if [ "$VERDICT" = block ]; then
-            echo "This run does not stand for the commit; see the gate job. Nothing is published."
+            # Withdraw an earlier result: this commit is not pre-checked.
+            SKIP_REASON="$GATE_REASON" bash "$tools/report.sh" skipped || true
+            echo "This run does not stand for the commit; see the gate job."
             exit 1
           fi
           if [ "$ANALYSE" = cancelled ]; then
