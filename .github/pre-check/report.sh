@@ -4,12 +4,14 @@
 # label and the exit status of the job. The reviewer itself cannot post any of
 # this; it only returns the structured result (result.schema.json).
 #
-# Usage: report.sh start | report | error
+# Usage: report.sh start | report | error | skipped
 #   start   create the labels if the repository lacks them and take both off
 #           the pull request while the review runs
 #   report  render RESULT_JSON into the comment, set the label, log usage and
 #           exit 1 when changes are needed
 #   error   say in the comment that the pre-check did not finish
+#   skipped take the labels off and, if there is a Pre-check comment, say that
+#           the new commits were not pre-checked (SKIP_REASON, HEAD_SHA)
 #
 # Environment: REPO, PR_NUMBER, GH_TOKEN, CTX (context directory),
 # RUN_URL, MODEL, RESULT_JSON and EXECUTION_FILE (report only).
@@ -74,6 +76,24 @@ error)
     echo "Nothing was decided: until the pre-check passes, a person reviews the pull request as usual."
   } > "$body"
   upsert_comment "$body"
+  exit 0
+  ;;
+skipped)
+  remove_label "$LABEL_PASSED"
+  remove_label "$LABEL_CHANGES"
+  id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" \
+    --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" | sed -n 1p) || id=""
+  if [ -n "$id" ]; then
+    body=$(mktemp)
+    {
+      echo "$MARKER"
+      echo "## Pre-check"
+      echo
+      echo "**Result:** not run for commit \`${HEAD_SHA:0:7}\` - ${SKIP_REASON:-the run was skipped.}"
+      echo "The result of the earlier run no longer applies to this pull request."
+    } > "$body"
+    upsert_comment "$body" || echo "::warning::Could not update the Pre-check comment."
+  fi
   exit 0
   ;;
 report) ;;
@@ -155,7 +175,8 @@ body=$(mktemp)
   echo "- Runtime behaviour: nothing was built, run or tested by the pre-check."
   jq -r '
     if .truncated then
-      "- **Too large for a full pre-check** (cap: \(.max_diff_lines) changed lines) - reviewed: \(.reviewed | map("`\(.)`") | join(", ")). Not reviewed: \(.not_reviewed | map("`\(.)`") | join(", "))."
+      "- **Too large for a full pre-check** (cap: \(.max_diff_lines) changed lines) - reviewed: \(.reviewed | map("`\(.)`") | join(", "))." +
+      (if (.not_reviewed | length) > 0 then " Not reviewed: \(.not_reviewed | map("`\(.)`") | join(", "))." else "" end)
     else empty end,
     if ((.excluded + .no_patch) | length) > 0 then
       "- Left out as generated, lock or binary files, or without a diff: \((.excluded + .no_patch) | map("`\(.)`") | join(", "))."

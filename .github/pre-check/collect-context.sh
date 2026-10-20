@@ -50,6 +50,13 @@ pr_body=$(jq -r '.body // ""' "$CTX/pr.json")
 
 # --- Diff, capped ----------------------------------------------------------
 gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" | jq -s 'add // []' > "$CTX/files.json"
+# The API lists at most 3000 files of a pull request.
+changed_files=$(jq -r '.changed_files' "$CTX/pr.json")
+listed_files=$(jq 'length' "$CTX/files.json")
+unlisted=$(( changed_files > listed_files ? changed_files - listed_files : 0 ))
+if (( unlisted > 0 )); then
+  notes+=("GitHub lists at most 3000 files of a pull request: $unlisted of its $changed_files changed files were not listed and not reviewed.")
+fi
 
 is_excluded() {
   local file="$1" pattern
@@ -202,10 +209,15 @@ done <<< "$DOC_REPOS"
 find "$CTX/docs" -type d -empty -delete
 
 # --- The repository's guide, from the base branch --------------------------
+# Every AGENTS.md and CLAUDE.md at any depth, then at most 40 other documents.
 repo_docs=()
+other_docs=0
 while IFS= read -r path; do
   [ -n "$path" ] || continue
-  (( ${#repo_docs[@]} < 40 )) || break
+  if [[ "$path" != AGENTS.md && "$path" != */AGENTS.md && "$path" != CLAUDE.md && "$path" != */CLAUDE.md ]]; then
+    (( other_docs < 40 )) || continue
+    other_docs=$(( other_docs + 1 ))
+  fi
   mkdir -p "$(dirname "$CTX/repo/$path")"
   if fetch_raw "repos/$REPO/contents/$path?ref=$base_sha" "$CTX/repo/$path"; then
     repo_docs+=("$path")
@@ -226,7 +238,7 @@ for file in "${reviewed[@]}" "${not_reviewed[@]}" "${no_patch[@]}"; do
   [[ "$file" == .github/workflows/* ]] && workflow_changes+=("$file")
 done
 truncated=false
-(( ${#not_reviewed[@]} == 0 )) || truncated=true
+(( ${#not_reviewed[@]} == 0 && unlisted == 0 )) || truncated=true
 standards_sha=$(git -C "$STANDARDS_DIR" rev-parse HEAD)
 
 jq -n \

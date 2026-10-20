@@ -49,7 +49,7 @@ on:
         type: string
         default: "main"
       timeout_minutes:
-        description: "Timeout of the review step, in minutes (at most 50: the job stops at 60)"
+        description: "Timeout of the review step, in minutes; values above 50 are cut to 50 (the job stops at 60)"
         type: number
         default: 20
     secrets:
@@ -66,6 +66,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      pull-requests: write
+      issues: write
     outputs:
       run: ${{ steps.decide.outputs.run }}
     steps:
@@ -83,11 +85,18 @@ jobs:
         run: |
           # A skipped review job counts as passed for a required status check,
           # so every reason not to review ends the gate green, with a notice.
+          # When new commits go unreviewed (fork, bot, no write access), the
+          # result of an earlier run is withdrawn as well (next steps).
           skip() {
             echo "::notice title=Pre-check skipped::$1"
             echo "Pre-check skipped: $1" >> "$GITHUB_STEP_SUMMARY"
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
+          }
+          skip_unreviewed() {
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "reason=$1" >> "$GITHUB_OUTPUT"
+            skip "$1"
           }
           if [ "$EVENT" != pull_request ]; then
             skip "the event is $EVENT; the pull request was pre-checked when it was opened or updated."
@@ -96,19 +105,40 @@ jobs:
             skip "the pull request is a draft. It is reviewed when it is marked ready for review."
           fi
           if [ "$HEAD_REPO" != "$REPO" ]; then
-            skip "the pull request comes from a fork ($HEAD_REPO), where secrets are not available. A person reviews it."
+            skip_unreviewed "the pull request comes from a fork ($HEAD_REPO), where secrets are not available. A person reviews it."
           fi
           if [ "$HAS_TOKEN" != true ]; then
             skip "the secret CLAUDE_CODE_OAUTH_TOKEN is not set, so the pre-check is not enabled in this repository."
           fi
           if [ "$AUTHOR_TYPE" = Bot ] || [[ "$ACTOR" == *"[bot]" ]]; then
-            skip "the pull request or the push comes from a bot ($ACTOR)."
+            skip_unreviewed "the pull request or the push comes from a bot ($ACTOR). A person reviews it."
           fi
           permission=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .permission 2> /dev/null || echo unknown)
           if [ "$permission" != admin ] && [ "$permission" != write ]; then
-            skip "$ACTOR has $permission access; the reviewer runs only for people with write access."
+            skip_unreviewed "$ACTOR has $permission access; the reviewer runs only for people with write access. A person reviews it."
           fi
           echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the pre-check scripts
+        if: steps.decide.outputs.stale == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: gi-org-pl/gi-tech-standards
+          ref: ${{ inputs.standards_ref }}
+          sparse-checkout: .github/pre-check
+          persist-credentials: false
+
+      # A fork's token is read-only; the script then leaves labels and the
+      # comment as they are.
+      - name: Withdraw the result of an earlier run
+        if: steps.decide.outputs.stale == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SKIP_REASON: ${{ steps.decide.outputs.reason }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/pre-check/report.sh skipped
 
   review:
     name: review
@@ -164,8 +194,13 @@ jobs:
           MAX_DIFF_LINES: ${{ inputs.max_diff_lines }}
           EXCLUDE_PATHS: ${{ inputs.exclude_paths }}
           DOC_REPOS: ${{ inputs.doc_repos }}
+          TIMEOUT: ${{ inputs.timeout_minutes }}
         run: |
           bash "$TOOLS/collect-context.sh"
+          # The job stops at 60 minutes; the review gets at most 50 of them,
+          # so that a review that runs out of time can still be reported.
+          timeout=$(( TIMEOUT < 1 ? 1 : TIMEOUT > 50 ? 50 : TIMEOUT ))
+          echo "timeout=$timeout" >> "$GITHUB_OUTPUT"
           delimiter="PROMPT_$(openssl rand -hex 16)"
           {
             echo "prompt<<$delimiter"
@@ -174,12 +209,23 @@ jobs:
             echo "schema=$(jq -c . "$TOOLS/result.schema.json")"
           } >> "$GITHUB_OUTPUT"
 
+      # Claude Code loads the CLAUDE.md files of the directories it reads, and
+      # the pull request's versions are no instructions for its reviewer. The
+      # base-branch guides are in .pre-check-context/repo/; the action restores
+      # the root CLAUDE.md and .claude/ from the base branch by itself.
+      - name: Remove agent instructions the pull request carries
+        run: |
+          find . \( -path ./.git -o -path ./.pre-check-context \) -prune -o \
+            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \) -type f -print -exec rm -f {} +
+          find . \( -path ./.git -o -path ./.pre-check-context \) -prune -o \
+            -name .claude -type d -print -exec rm -rf {} +
+
       # Read-only tools plus inline comments on the diff. No shell, no edits,
       # no web access; the summary comes back as structured output.
       - name: Review
         id: review
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
-        timeout-minutes: ${{ inputs.timeout_minutes }}
+        timeout-minutes: ${{ fromJSON(steps.context.outputs.timeout) }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}

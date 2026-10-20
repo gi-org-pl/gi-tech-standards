@@ -93,7 +93,9 @@ The `pre-check / gate` job decides, and ends green with a notice when the review
 - the event is a merge queue entry (`merge_group`) - the pull request was pre-checked already.
 
 A skipped `pre-check / review` job counts as passed for a required status check, so a skipped pre-check never blocks a
-merge.
+merge. When new commits go unreviewed - a fork, a bot or a person without write access pushed them - the gate also takes
+the pre-check labels off and replaces an earlier Pre-check comment with "not run for commit ...", so an old "passed"
+does not stand for code nobody pre-checked. The person reviewing is then the only check, as before the pre-check.
 
 ## Limits and cost
 
@@ -109,7 +111,9 @@ on that subscription. The workflow keeps one review small:
 | Review timeout | 20 minutes (at most 50) | `timeout_minutes` |
 
 A larger pull request is reviewed up to the cap. Its summary says "too large for a full pre-check" and lists the
-reviewed and the unreviewed files; the result covers only the reviewed ones. A newer push cancels a review that is still
+reviewed and the unreviewed files; the result covers only the reviewed ones. GitHub lists at most 3000 files of a pull
+request; the files beyond that are counted as not reviewed. The review timeout is cut to 50 minutes, because the job
+itself stops at 60 and needs the rest to report a review that ran out of time. A newer push cancels a review that is still
 running for the same pull request. The number of turns, the duration, the tokens and the API-price estimate of each run
 are in the job summary of the run (on a subscription the estimate is not money spent).
 
@@ -193,9 +197,11 @@ makes the check pass) does not exist yet.
 - The pull request is untrusted input: the reviewer treats its text, the issues and the code as data and reports any
   attempt to steer it as a blocking finding. Its tools are read-only, it has no shell and no web access, and the
   workflow redacts token-like strings from the summary before posting it.
-- The reviewer instructions and the scripts are taken from this repository, never from the pull request. Claude Code's
-  own configuration files in the checkout (`.claude/`, `CLAUDE.md`, `.mcp.json`) are restored from the base branch by
-  the action before the reviewer starts.
+- The reviewer instructions and the scripts are taken from this repository, never from the pull request. Agent
+  instruction files of the pull request (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.claude/` at any depth) are
+  removed from the checkout before the reviewer starts, because Claude Code would load them as instructions; the
+  base-branch versions are in the context, and the action restores the root `CLAUDE.md`, `.claude/` and `.mcp.json`
+  from the base branch.
 - A pull request can still change its repository's caller workflow. The reviewer reports such a change as blocking,
   and the repository's code owners should own `.github/workflows/`.
 
