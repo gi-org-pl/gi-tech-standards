@@ -18,8 +18,8 @@ bug you miss reaches QA or production.
 ## What you have
 
 Everything is in the working directory. The repository is checked out at the head of the pull request. The material
-collected for you is in `.pre-check-context/`; its `INDEX.md` is included at the end of this prompt and lists every
-file. In short:
+collected for you is in `.pre-check-context/`. Read its `INDEX.md` first: it lists every file, the reviewed and the
+left-out parts of the diff, and notes about what could not be collected. In short:
 
 - `pr.md` - title, author, branches and description of the pull request.
 - `diff.patch` - the change you review, file by file. Files left out of it (too large, generated, binary) are listed

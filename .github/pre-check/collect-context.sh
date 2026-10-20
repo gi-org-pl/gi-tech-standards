@@ -3,7 +3,8 @@
 # that the reviewer itself needs no GitHub access: the pull request, its diff
 # (capped), the linked issues, Figma links, linked documents, the repository's
 # guide from the base branch and earlier pre-check comments. Writes INDEX.md
-# (what is where), scope.json (read by report.sh) and PROMPT.md (the prompt).
+# (what is where), scope.json (read by report.sh) and PROMPT.md (the prompt:
+# the reviewer instructions and a pointer to INDEX.md).
 #
 # Environment:
 #   REPO, PR_NUMBER     the pull request (owner/name, number)
@@ -148,7 +149,12 @@ while IFS= read -r ref; do
     continue
   fi
   file="$CTX/issues/${issue_repo//\//-}-$issue_number.md"
-  comments=$(gh api --paginate "repos/$issue_repo/issues/$issue_number/comments?per_page=100" 2> /dev/null | jq -s 'add // [] | .[:30]' || echo '[]')
+  comments=$(gh api --paginate "repos/$issue_repo/issues/$issue_number/comments?per_page=100" 2> /dev/null | jq -s 'add // []' || echo '[]')
+  comment_count=$(jq -s 'map(length) | add // 0' <<< "$comments")
+  if (( comment_count > 100 )); then
+    notes+=("The issue $ref has $comment_count comments; only the first 100 were read.")
+  fi
+  comments=$(jq -s 'add // [] | .[:100]' <<< "$comments")
   {
     jq -r '
       "# \(.title)\n",
@@ -237,10 +243,14 @@ if jq -e '.truncated' "$CTX/tree.json" > /dev/null; then
 fi
 repo_docs=()
 other_docs=0
+skipped_repo_docs=0
 while IFS= read -r path; do
   [ -n "$path" ] || continue
   if [[ "$path" != AGENTS.md && "$path" != */AGENTS.md && "$path" != CLAUDE.md && "$path" != */CLAUDE.md ]]; then
-    (( other_docs < 40 )) || continue
+    if (( other_docs >= 40 )); then
+      skipped_repo_docs=$(( skipped_repo_docs + 1 ))
+      continue
+    fi
     other_docs=$(( other_docs + 1 ))
   fi
   mkdir -p "$(dirname "$CTX/repo/$path")"
@@ -249,6 +259,10 @@ while IFS= read -r path; do
   fi
 done < <(jq -r '.tree[] | select(.type == "blob") | .path' "$CTX/tree.json" \
   | grep -E '(^|/)(AGENTS|CLAUDE)\.md$|^(README\.md|CONTRIBUTING\.md|docs/.*\.mdx?|\.github/pull_request_template\.md)$' || true)
+
+if (( skipped_repo_docs > 0 )); then
+  notes+=("Only 40 documents of the repository guide besides AGENTS.md and CLAUDE.md were read; $skipped_repo_docs more were not.")
+fi
 
 # --- Earlier pre-check comments --------------------------------------------
 gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/comments?per_page=100" | jq -s '
@@ -337,12 +351,14 @@ list() { if (( $# )); then printf -- '- `%s`\n' "$@"; else echo "- none"; fi; }
   fi
 } > "$CTX/INDEX.md"
 
+# The prompt stays small whatever the size of the pull request: the action
+# passes it in one environment variable, which Linux limits to 128 KiB.
 {
   cat "$STANDARDS_DIR/docs/frontend/PRE_CHECK_REVIEWER.md"
   echo
   echo "---"
   echo
-  cat "$CTX/INDEX.md"
+  echo "Pull request $REPO#$PR_NUMBER at commit $head_sha. Start by reading \`.pre-check-context/INDEX.md\`."
 } > "$CTX/PROMPT.md"
 
 # Only the rendered files are meant for the reviewer.
