@@ -1,23 +1,21 @@
 name: frontend-pre-check
 
-# Reusable AI pre-check of a front-end pull request. Process, setup and the
-# security model: docs/frontend/pre-check/PROCESS.md. Reviewer instructions:
-# docs/frontend/pre-check/REVIEWER.md.
+# Reusable AI pre-check of a front-end pull request. Process, setup, outcome
+# states and the security model: docs/frontend/pre-check/PROCESS.md.
 #
-# Three jobs, so that no job holds both the subscription secret and a token
-# that can write:
-#   gate    - decides; no secret, no checkout of the pull request
-#   analyse - the reviewer; the secret, a read-only token, read-only tools,
-#             no way to post anything; returns a structured result
-#   review  - publishes; a write token, no secret, no code of the pull
-#             request. It runs for every event and its status is the check
-#             to require (frontend-pre-check / review): it passes only for a
-#             clean or advisory pre-check of the current head, or for a merge
-#             queue entry whose pull requests passed. A skip fails it.
-#
-# The scripts and the reviewer instructions are always taken from the commit
-# of this workflow file (job.workflow_sha), so pinning the caller's uses: to a
-# SHA pins all of it.
+# This file only orchestrates: jobs, permissions, dependencies and which
+# script runs where. The logic lives in .github/frontend-pre-check/, taken
+# from the commit of this workflow file (job.workflow_sha):
+#   gate    - gate.py decides; no secret, no checkout of the pull request
+#   analyse - context/collect.py gathers the context from the API, the
+#             reviewer runs with the secret, a read-only token and read-only
+#             tools, review/evidence.py measures its reading of the diff
+#   review  - report.sh publish: review/evaluate.py decides the outcome,
+#             review/render.py presents it, report.sh publishes it; a write
+#             token, no secret, no code of the pull request. It runs for every
+#             event, and its status is the check to require
+#             (frontend-pre-check / review); see contracts.py for which
+#             outcomes pass.
 #
 # Callers trigger it on pull_request (opened, synchronize, reopened,
 # ready_for_review, converted_to_draft, edited) and merge_group, grant
@@ -40,7 +38,7 @@ on:
         type: number
         default: 3000
       exclude_paths:
-        description: "Newline-separated files left out of the diff; each must be one of the policy in .github/frontend-pre-check/classify.py (a caller can narrow it, never widen it)"
+        description: "Newline-separated files left out of the diff; each must be one of the policy in .github/frontend-pre-check/context/diff.py (a caller can narrow it, never widen it)"
         type: string
         default: |
           *.test.ts
@@ -96,8 +94,7 @@ jobs:
       pull-requests: write
       issues: write
       actions: read
-    # A burst of events on one pull request (an edit storm) cancels the
-    # waiting gates; only the last one goes on.
+    # A burst of events on one pull request cancels the waiting gates.
     concurrency:
       group: frontend-pre-check-gate-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: true
@@ -105,7 +102,17 @@ jobs:
       verdict: ${{ steps.decide.outputs.verdict }}
       reason: ${{ steps.decide.outputs.reason }}
     steps:
-      - name: Check the inputs and the workflow commit
+      - name: Check out the pre-check scripts
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          sparse-checkout: .github/frontend-pre-check
+          persist-credentials: false
+          path: .pre-check-tools
+
+      - name: Decide
+        id: decide
         env:
           MODEL: ${{ inputs.model }}
           MAX_TURNS: ${{ inputs.max_turns }}
@@ -114,32 +121,8 @@ jobs:
           MAX_RUNS: ${{ inputs.max_runs_per_hour }}
           EXCLUDE_PATHS: ${{ inputs.exclude_paths }}
           DOC_REPOS: ${{ inputs.doc_repos }}
-          REPO: ${{ github.repository }}
           WORKFLOW_SHA: ${{ job.workflow_sha }}
           WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
-        run: |
-          # The inputs end up in the reviewer's command line; nothing but the
-          # expected shapes may pass. The exclusions are also checked against
-          # the immutable policy in classify.py.
-          fail() { echo "::error title=Pre-check::Invalid setting: $1"; exit 1; }
-          in_range() { [[ "$1" =~ ^[0-9]{1,6}$ ]] && (( $1 >= $2 && $1 <= $3 )); }
-          [[ "$MODEL" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || fail "model"
-          in_range "$MAX_TURNS" 1 200 || fail "max_turns"
-          in_range "$MAX_DIFF_LINES" 100 20000 || fail "max_diff_lines"
-          in_range "$TIMEOUT" 1 50 || fail "timeout_minutes"
-          in_range "$MAX_RUNS" 1 60 || fail "max_runs_per_hour"
-          while IFS= read -r pattern; do
-            [ -z "$pattern" ] || [[ "$pattern" =~ ^[A-Za-z0-9._*/-]{1,200}$ ]] || fail "exclude_paths"
-          done <<< "$EXCLUDE_PATHS"
-          while IFS= read -r doc_repo; do
-            [ -z "$doc_repo" ] || [[ "$doc_repo" =~ ^${REPO%/*}/[A-Za-z0-9._-]+$ ]] || fail "doc_repos"
-          done <<< "$DOC_REPOS"
-          [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "job.workflow_sha is empty; the scripts cannot be pinned"
-          [[ "$WORKFLOW_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "job.workflow_repository"
-
-      - name: Decide whether to review
-        id: decide
-        env:
           HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
@@ -151,74 +134,8 @@ jobs:
           AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
           ACTOR: ${{ github.actor }}
           CALLER_REF: ${{ github.workflow_ref }}
-          MAX_RUNS: ${{ inputs.max_runs_per_hour }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          # verdict=run: review. verdict=queue: a merge queue entry; the review
-          # job checks that its pull requests passed on their heads.
-          # verdict=skip and verdict=block: this commit is not pre-checked;
-          # the review job withdraws earlier results and FAILS - a skip is
-          # never a green required check.
-          finish() {
-            echo "::notice title=Pre-check::$2"
-            echo "Pre-check: $2" >> "$GITHUB_STEP_SUMMARY"
-            {
-              echo "verdict=$1"
-              echo "reason=$2"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          }
-          if [ "$EVENT" = merge_group ]; then
-            finish queue "a merge queue entry; its pull requests must have passed the pre-check on their heads."
-          fi
-          if [ "$EVENT" != pull_request ]; then
-            finish skip "the event is $EVENT, which the pre-check does not review."
-          fi
-          if [ "$HEAD_REPO" != "$REPO" ]; then
-            finish skip "the pull request comes from a fork, where secrets are not available."
-          fi
-          if [ "$DRAFT" = true ]; then
-            finish skip "the pull request is a draft; it is reviewed when it is marked ready for review."
-          fi
-          if [ "$HAS_TOKEN" != true ]; then
-            finish skip "the secret CLAUDE_CODE_OAUTH_TOKEN is not available to this repository."
-          fi
-          if [ "$AUTHOR_TYPE" = Bot ] || [[ "$ACTOR" == *"[bot]" ]]; then
-            finish skip "the pull request or the push comes from a bot."
-          fi
-          # Cost control, not a trust boundary: the actor only triggered the
-          # event; the content may come from anyone.
-          permission=$(gh api "repos/$REPO/collaborators/$ACTOR/permission" --jq .permission 2> /dev/null || echo unknown)
-          if [ "$permission" != admin ] && [ "$permission" != write ]; then
-            finish skip "the person who triggered the run has no write access."
-          fi
-          if [ "$ACTION" = edited ]; then
-            # Debounce: a newer edit within this time cancels this gate.
-            sleep 30
-          fi
-          workflow_path=${CALLER_REF#"$REPO/"}
-          workflow_path=${workflow_path%%@*}
-          [[ "$workflow_path" =~ ^[A-Za-z0-9._/-]+$ ]] || workflow_path=unknown
-          since=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)
-          branch=$(jq -rn --arg ref "$HEAD_REF" '$ref | @uri')
-          # Every page, and only runs of this pull request.
-          runs=$(gh api --paginate "repos/$REPO/actions/runs?event=pull_request&branch=$branch&created=%3E%3D$since&per_page=100" \
-            --jq "[.workflow_runs[] | select(.path == \"$workflow_path\" and .conclusion != \"skipped\" and any(.pull_requests[]?; .number == $PR_NUMBER))] | length" \
-            2> /dev/null | jq -s 'add // 0' 2> /dev/null || echo 0)
-          if [[ "$runs" =~ ^[0-9]+$ ]] && (( runs > MAX_RUNS )); then
-            finish block "this pull request had $runs pre-check runs in the last hour, more than $MAX_RUNS; re-run the job later."
-          fi
-          finish run "reviewing."
-
-      - name: Check out the pre-check scripts
-        if: steps.decide.outputs.verdict == 'run'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          sparse-checkout: .github/frontend-pre-check
-          persist-credentials: false
-          path: .pre-check-tools
+        run: python3 .pre-check-tools/.github/frontend-pre-check/gate.py
 
       - name: Take the labels off before the review
         if: steps.decide.outputs.verdict == 'run'
@@ -245,10 +162,8 @@ jobs:
       group: frontend-pre-check-analyse-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
-      REPO: ${{ github.repository }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       CTX: ${{ github.workspace }}/.pre-check-context
+      TOOLS: ${{ github.workspace }}/.pre-check-context/standards/.github/frontend-pre-check
     outputs:
       result: ${{ steps.review.outputs.structured_output }}
       scope: ${{ steps.context.outputs.scope }}
@@ -257,9 +172,8 @@ jobs:
       coverage: ${{ steps.evidence.outputs.coverage }}
       tools: ${{ steps.evidence.outputs.tools }}
     steps:
-      # The head of the pull request, so that line numbers match the diff. It
-      # is read by the reviewer as data; nothing from it is executed, and no
-      # credentials stay in it.
+      # The head of the pull request, read by the reviewer as data; nothing
+      # from it is executed, and no credentials stay in it.
       - name: Check out the pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -267,58 +181,38 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      # Symbolic links could point the reviewer's read tools at
-      # /proc/self/environ or the runner's files. Agent configuration of the
-      # pull request (CLAUDE.md, AGENTS.md, .claude/, .mcp.json at any depth)
-      # is no instruction for its reviewer; the base-branch guides are in the
-      # context, and the action restores the root files from the base branch.
-      - name: Remove links and agent configuration from the checkout
-        run: |
-          find . -path ./.git -prune -o -type l -print -exec rm -f {} +
-          find . -path ./.git -prune -o \
-            \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md -o -name .mcp.json -o -name .claude.json \) \
-            -type f -print -exec rm -f {} +
-          find . -path ./.git -prune -o -name .claude -type d -prune -print -exec rm -rf {} +
-          rm -rf "$CTX"
-
       - name: Check out gi-tech-standards at the commit of this workflow
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          path: .pre-check-context/standards
+          path: .pre-check-tools
           persist-credentials: false
+
+      - name: Remove links and agent configuration from the checkout
+        run: |
+          mv .pre-check-tools "$RUNNER_TEMP/pre-check-tools"
+          bash "$RUNNER_TEMP/pre-check-tools/.github/frontend-pre-check/context/clean-checkout.sh" "$CTX"
+          mkdir -p "$CTX"
+          mv "$RUNNER_TEMP/pre-check-tools" "$CTX/standards"
 
       - name: Collect the context
         id: context
         env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           STANDARDS_DIR: ${{ github.workspace }}/.pre-check-context/standards
           MAX_DIFF_LINES: ${{ inputs.max_diff_lines }}
           EXCLUDE_PATHS: ${{ inputs.exclude_paths }}
           DOC_REPOS: ${{ inputs.doc_repos }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          status=0
-          bash "$STANDARDS_DIR/.github/frontend-pre-check/collect-context.sh" || status=$?
-          if [ -f "$CTX/abort" ]; then
-            echo "abort=$(tr -cd 'a-z_' < "$CTX/abort")" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-          [ "$status" -eq 0 ] || exit "$status"
-          delimiter="PROMPT_$(openssl rand -hex 16)"
-          {
-            echo "prompt<<$delimiter"
-            cat "$CTX/PROMPT.md"
-            echo "$delimiter"
-            echo "schema=$(jq -c . "$STANDARDS_DIR/.github/frontend-pre-check/result.schema.json")"
-            echo "scope=$(jq -c . "$CTX/scope.json")"
-          } >> "$GITHUB_OUTPUT"
+        run: python3 "$TOOLS/context/collect.py"
 
-      # The built-in tool set is limited to Read, Glob and Grep (--tools), in
-      # restricted mode (file tools confined to the working directory, no
-      # settings files), with no MCP servers, no hooks, the runner's own paths
-      # and .git denied. The reviewer cannot post anything: its findings come
-      # back as structured output, which the review job escapes and publishes.
+      # Only Read, Glob and Grep exist in the session (--tools), in restricted
+      # mode, with no MCP servers, no hooks and the runner's own paths and .git
+      # denied. The reviewer cannot post anything: its findings come back as
+      # structured output.
       - name: Review
         id: review
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
@@ -341,43 +235,12 @@ jobs:
             --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task,Agent,Skill,SlashCommand,BashOutput,KillShell,Read(./.git/**),Read(//proc/**),Read(//sys/**),Read(//etc/**),Read(//tmp/**),Read(//run/**),Read(//var/**),Read(//root/**),Read(~/.claude/**),Read(~/.claude.json),Read(~/.config/**),Read(~/.local/**),Read(~/.ssh/**),Read(~/.npmrc),Read(~/.gitconfig),Read(~/work/_temp/**),Read(~/work/_actions/**)"
             --json-schema '${{ steps.context.outputs.schema }}'
 
-      # Deterministic evidence from the reviewer's own log, which is not
-      # uploaded: whether it read every line of diff.patch, which tools it
-      # had, and the usage numbers. Only numbers, a fixed word and tool names
-      # leave this job.
       - name: Record the evidence
         id: evidence
         if: always() && steps.review.outputs.execution_file != ''
         env:
           EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
-        run: |
-          lines=$(wc -l < "$CTX/diff.patch" 2> /dev/null || echo 0)
-          coverage=$(jq -r --argjson lines "$lines" --arg diff "$CTX/diff.patch" '
-            [ .[] | select(.type == "assistant") | .message.content[]?
-              | select(.type == "tool_use" and .name == "Read" and .input.file_path == $diff)
-              | .input | [(.offset // 1), ((.offset // 1) + (.limit // 2000) - 1)] ]
-            | sort
-            | reduce .[] as $r ({end: 0, gap: false};
-                if $r[0] > .end + 1 then .gap = true else . end
-                | .end = ([.end, $r[1]] | max))
-            | if $lines == 0 then "full"
-              elif .end == 0 then "none"
-              elif .gap or .end < $lines then "partial"
-              else "full" end' "$EXECUTION_FILE" 2> /dev/null || echo none)
-          [[ "$coverage" =~ ^(full|partial|none)$ ]] || coverage=none
-          tools=$(jq -r '[.[] | select(.type == "system" and .subtype == "init") | .tools[]?] | map(select(test("^[A-Za-z0-9_:-]{1,64}$"))) | join(",")' "$EXECUTION_FILE" 2> /dev/null || echo "")
-          usage=$(jq -c '[.[] | select(.type == "result")] | last
-            | {num_turns, duration_ms, total_cost_usd, permission_denials_count: ((.permission_denials // []) | length),
-               usage: {input_tokens: .usage.input_tokens, output_tokens: .usage.output_tokens,
-                       cache_read_input_tokens: .usage.cache_read_input_tokens,
-                       cache_creation_input_tokens: .usage.cache_creation_input_tokens}}
-            | walk(if type == "string" then null else . end)' "$EXECUTION_FILE" 2> /dev/null || echo '{}')
-          {
-            echo "coverage=$coverage"
-            echo "tools=$tools"
-            echo "usage=$usage"
-          } >> "$GITHUB_OUTPUT"
-          echo "Diff read: $coverage. Tools available: $tools. Usage: $usage"
+        run: python3 "$TOOLS/review/evidence.py" "$EXECUTION_FILE" "$CTX/diff.patch"
 
   review:
     name: review
@@ -396,12 +259,6 @@ jobs:
     concurrency:
       group: frontend-pre-check-publish-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_ref || github.run_id }}
       cancel-in-progress: false
-    env:
-      REPO: ${{ github.repository }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      MODEL: ${{ inputs.model }}
     steps:
       - name: Check out the pre-check scripts
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -414,6 +271,11 @@ jobs:
 
       - name: Publish
         env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MODEL: ${{ inputs.model }}
           GATE: ${{ needs.gate.result }}
           VERDICT: ${{ needs.gate.outputs.verdict }}
           GATE_REASON: ${{ needs.gate.outputs.reason }}
@@ -428,33 +290,4 @@ jobs:
           CHECK_RUN_ID: ${{ job.check_run_id }}
           STANDARDS_SHA: ${{ job.workflow_sha }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          tools=.pre-check-tools/.github/frontend-pre-check
-          # A gate cancelled by a newer event: that run reports; this one
-          # publishes nothing and does not pass.
-          if [ "$GATE" = cancelled ]; then
-            echo "The gate was superseded by a newer run. Nothing is published."
-            exit 1
-          fi
-          if [ "$GATE" != success ]; then
-            if [ -n "$PR_NUMBER" ]; then REASON=gate bash "$tools/report.sh" error; fi
-            exit 1
-          fi
-          case "$VERDICT" in
-            queue) exec bash "$tools/report.sh" queue ;;
-            skip | block) SKIP_REASON="$GATE_REASON" exec bash "$tools/report.sh" notchecked ;;
-            run) ;;
-            *) echo "Unknown verdict."; exit 1 ;;
-          esac
-          if [ "$ANALYSE" = cancelled ]; then
-            echo "The review was superseded by a newer run. Nothing is published."
-            exit 1
-          fi
-          if [ "$ANALYSE" != success ] || [ -z "$RESULT_JSON" ] || [ -z "$SCOPE_JSON" ]; then
-            REASON="${ABORT:-failed}" bash "$tools/report.sh" error
-            exit 0
-          fi
-          work=$(mktemp -d)
-          printf '%s' "$RESULT_JSON" > "$work/result.json"
-          printf '%s' "$SCOPE_JSON" > "$work/scope.json"
-          RESULT_FILE="$work/result.json" SCOPE_FILE="$work/scope.json" bash "$tools/report.sh" report
+        run: bash .pre-check-tools/.github/frontend-pre-check/report.sh publish

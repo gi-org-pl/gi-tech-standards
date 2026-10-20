@@ -4,7 +4,7 @@
 # Run: bash .github/frontend-pre-check/test_report.sh
 set -uo pipefail
 
-HERE=$(cd "$(dirname "$0")" && pwd)
+HERE=$(cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
@@ -19,6 +19,9 @@ case "$args" in
   *"commits/"*"/check-runs"*) echo "$FAKE_CHECK" ;;
   *"--input -"*) cat > /dev/null ;;
 esac
+if [ -n "${FAKE_FAIL:-}" ] && [[ "$args" == *"$FAKE_FAIL"* ]]; then
+  exit 1
+fi
 for a in "$@"; do
   case "$a" in body=@*) cp "${a#body=@}" "$FAKE_POSTED" ;; esac
 done
@@ -54,7 +57,7 @@ decisions='{"data_structures":[],"state":[],"api_contracts":[],"ux_behaviours":[
 mk_result() { echo "{\"result\":\"passed\",\"summary\":\"s\",\"decisions\":$decisions,\"findings\":$1,\"checked\":[],\"not_checked\":[],\"qa\":[]}" > "$T/result.json"; }
 cat > "$T/scope.json" << EOF
 {"head":"$HEAD_SHA","base":"$BASE_SHA","standards":"$HEAD_SHA","reviewed":["src/a.ts"],"file_count":1,"diff_lines":3,
- "max_diff_lines":3000,"truncated":false,"not_reviewed":[],"excluded":[],"excluded_lines":0,"safe_assets":[],
+ "max_diff_lines":3000,"unlisted":0,"truncated":false,"not_reviewed":[],"excluded":[],"excluded_lines":0,"safe_assets":[],
  "unreviewable":[],"human_paths":[],"workflow_changes":[],"renamed":[],"issues":[],"figma":[],"docs":[],
  "repo_docs":[],"cut_sources":[],"notes":[],"hunks":{"src/a.ts":[{"LEFT":[1,3],"RIGHT":[1,4]}]}}
 EOF
@@ -97,6 +100,23 @@ echo '{"result":"bogus"}' > "$T/result.json"
 check "an invalid result fails" 1 report
 
 check "an unfinished run fails" 1 env REASON=failed bash "$HERE/report.sh" error
+
+# The review job's dispatch (report.sh publish) for every way the gate and the
+# analysis can end.
+mk_result '[]'
+RJ=$(cat "$T/result.json")
+SJ=$(cat "$T/scope.json")
+check "publish: a superseded gate does not pass" 1 env GATE=cancelled bash "$HERE/report.sh" publish
+check "publish: a failed gate fails" 1 env GATE=failure bash "$HERE/report.sh" publish
+check "publish: a skip fails" 1 env GATE=success VERDICT=skip GATE_REASON="the pull request is a draft." bash "$HERE/report.sh" publish
+check "publish: a blocked run fails" 1 env GATE=success VERDICT=block GATE_REASON="limit." bash "$HERE/report.sh" publish
+check "publish: an unknown verdict fails" 1 env GATE=success VERDICT=other bash "$HERE/report.sh" publish
+check "publish: a merge queue entry dispatches" 0 env GATE=success VERDICT=queue MERGE_HEAD_REF=refs/heads/gh-readonly-queue/main/pr-1-abc CHECK_RUN_ID=5 bash "$HERE/report.sh" publish
+check "publish: a superseded analysis does not pass" 1 env GATE=success VERDICT=run ANALYSE=cancelled bash "$HERE/report.sh" publish
+check "publish: a failed analysis fails" 1 env GATE=success VERDICT=run ANALYSE=failure ABORT=failed bash "$HERE/report.sh" publish
+check "publish: a clean analysis passes" 0 env GATE=success VERDICT=run ANALYSE=success RESULT_JSON="$RJ" SCOPE_JSON="$SJ" COVERAGE=full bash "$HERE/report.sh" publish
+check "publish: an empty result fails" 1 env GATE=success VERDICT=run ANALYSE=success RESULT_JSON="" SCOPE_JSON="$SJ" bash "$HERE/report.sh" publish
+check "an API failure while publishing fails" 1 env FAKE_FAIL="pulls/1 --jq" bash -c "RESULT_FILE='$T/result.json' SCOPE_FILE='$T/scope.json' COVERAGE=full bash '$HERE/report.sh' report"
 
 if (( failures )); then
   echo "$failures failure(s)"
