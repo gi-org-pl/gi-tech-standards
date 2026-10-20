@@ -129,10 +129,12 @@ jobs:
           sparse-checkout: .github/pre-check
           persist-credentials: false
 
-      # A fork's token is read-only; the script then leaves labels and the
-      # comment as they are.
+      # Best effort: a fork's token is read-only, and a skipped run must not
+      # turn red because of this clean-up (for example while the secret is
+      # missing). An unreviewed commit still needs a person's approval.
       - name: Withdraw the result of an earlier run
         if: steps.decide.outputs.stale == 'true'
+        continue-on-error: true
         env:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
