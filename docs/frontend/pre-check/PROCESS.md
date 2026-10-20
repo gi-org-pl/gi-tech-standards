@@ -37,19 +37,19 @@ and accepts the pull request or rejects it with suggestions.
 
 ## Outcomes
 
-`frontend-pre-check / review` runs for every event and is the check to require. It passes only in the first three
-rows; every other outcome, a skip included, fails it.
+There is one set of outcome states, defined once in
+[`contracts.py`](../../../.github/frontend-pre-check/contracts.py) and used by every component.
+`frontend-pre-check / review` runs for every event and is the check to require; its exit status follows the table.
 
-| Outcome | When | Label | Check |
+| State | When | Label | `frontend-pre-check / review` |
 | --- | --- | --- | --- |
-| Clean | no findings, and the whole pull request was deterministically covered | `pre-check: clean` | passes |
-| Advisory | only non-blocking findings, and the whole pull request was covered | `pre-check: advisory` | passes |
-| Merge queue | a `merge_group` entry whose pull requests passed this check on their current heads | none | passes |
-| Changes needed | at least one blocking finding, anywhere in the reviewer's list | `pre-check: changes` | fails |
-| Needs a person | see the list below | `pre-check: human review` | fails |
-| Withheld | the reviewer's output contains text that looks like a credential; nothing of it is published | `pre-check: human review` | fails |
-| Not pre-checked | a fork, a draft, a bot, an actor without write access, no secret, or the hourly run limit | none | fails |
-| Not finished | the reviewer failed, returned no valid result, an exclusion is outside the policy, or a file name contains a control character or a backtick | none | fails |
+| `clean` | no findings, and the whole pull request was deterministically covered | `pre-check: clean` | success (exit 0) |
+| `advisory` | only non-blocking findings, and the whole pull request was covered | `pre-check: advisory` | success (exit 0) |
+| `queued` | a `merge_group` entry whose pull requests passed this check on their current heads | none | success (exit 0) |
+| `changes` | at least one blocking finding, anywhere in the reviewer's list | `pre-check: changes` | failure (exit 1) |
+| `human` | a rule says a person must judge it (list below), or the reviewer's output looked like it contained a credential and was withheld | `pre-check: human review` | failure (exit 1) |
+| `invalid` | no valid result: the reviewer failed or returned a malformed result, the scope broke its schema, an exclusion is outside the policy, or a file name contains a control character or a backtick | none | failure (exit 1) |
+| `skipped` | not pre-checked: a fork, a draft, a bot, an actor without write access, no secret, or the hourly run limit | none | failure (exit 1) |
 
 A pull request **needs a person** when any of these holds - each is decided by a rule, not by the model:
 
@@ -81,7 +81,7 @@ review - deliberately: nothing reviewed it otherwise.
 
 The reviewer is isolated from the agent that wrote the code and from GitHub. It receives only:
 
-- the diff of the pull request, classified by `classify.py` and in risk order (application code first), and its
+- the diff of the pull request, classified by `context/diff.py` and in risk order (application code first), and its
   description; tests and test helpers are left out of the diff by an immutable policy and listed with their size,
 - the linked issues **of this organisation** opened by its members, with its members' comments (owners, members,
   collaborators); the title and body of an issue opened by anyone else, and comments by anyone else, are left out,
@@ -160,7 +160,8 @@ URLs with passwords, authorization headers, common provider key shapes); a hit w
 heuristic backstop, **not data-loss prevention**: a credential in a pull request has to be rotated by a person in any
 case.
 
-`test_render.py`, `test_classify.py` and `test_report.sh` lock these rules in and run in this repository's CI.
+The tests in [`.github/frontend-pre-check/tests/`](../../../.github/frontend-pre-check/tests/) lock these rules in; the
+`frontend-pre-check-tests` workflow runs them on every pull request that touches the pre-check.
 
 ## When it does not review
 
@@ -192,7 +193,7 @@ on that subscription. The workflow keeps one review small:
 | Model | `sonnet` | `model` |
 | Maximum agent turns | 60 | `max_turns` |
 | Reviewed diff | 3000 changed lines, in risk order; more needs a person | `max_diff_lines` |
-| Files left out of the diff | the exclusion policy in `classify.py`: tests (`*.test.ts(x)`, `*.spec.ts(x)`, `__tests__/`, top-level `e2e/`), test helpers (`__mocks__/`, `*.fixture(s).ts`, `setupTests.ts`, `src/utils/vitest/`), snapshots, lock files (which still need a person). A caller can choose a subset, never add to it | `exclude_paths` |
+| Files left out of the diff | the exclusion policy in `context/diff.py`: tests (`*.test.ts(x)`, `*.spec.ts(x)`, `__tests__/`, top-level `e2e/`), test helpers (`__mocks__/`, `*.fixture(s).ts`, `setupTests.ts`, `src/utils/vitest/`), snapshots, lock files (which still need a person). A caller can choose a subset, never add to it | `exclude_paths` |
 | Review timeout | 20 minutes (at most 50; the job stops at 60) | `timeout_minutes` |
 | Runs per pull request | 8 in the last hour, counted over every page of runs of this pull request | `max_runs_per_hour` |
 
@@ -302,7 +303,7 @@ Three kinds of actors matter:
   segments, a plain character set, `realpath` under the target directory), issues limited to this organisation and its
   members, documents limited to the default branch, sizes capped and every cut recorded. A file name with a control
   character or a backtick stops the run.
-- **The verdict is deterministic where it can be.** `classify.py` decides coverage from GitHub's file records (both
+- **The verdict is deterministic where it can be.** `context/diff.py` decides coverage from GitHub's file records (both
   paths of a rename, the status, the patch); the reviewer's reading of the diff is measured from its own log (every line
   of `diff.patch` must have been read); the outcome counts every finding and ignores the reviewer's own `result`.
 - **Escaped plain-text output and a final credential scan.** See [The Pre-check comment](#the-pre-check-comment).
@@ -314,7 +315,7 @@ Three kinds of actors matter:
   its own dependencies and the Claude Code version, 2.1.304; `--tools` and `--restricted` exist since at least
   2.1.285, and the run summary shows the tool set the session really had).
 - **Inputs are validated** in the gate (the model name, numbers within ranges, document repositories of the same
-  organisation) and the exclusions against the policy in `classify.py`.
+  organisation) and the exclusions against the policy in `context/diff.py`.
 
 What is **not** done, and why:
 
@@ -375,15 +376,49 @@ merging") to GitHub Enterprise Cloud organisations; gi-org-pl is on the Team pla
 callers and the settings above. Should the plan change, the caller's content moves into a workflow in this repository
 that the ruleset points at, pinned by SHA.
 
+## How it is built
+
+The workflow file only orchestrates jobs, permissions and dependencies; the logic sits in small, tested components
+that hand each other validated data:
+
+```text
+.github/
+  workflows/
+    frontend-pre-check.yml        the reusable workflow: three jobs, nothing else
+    frontend-pre-check-tests.yml  runs the tests on pull requests that touch the pre-check
+  frontend-pre-check/
+    contracts.py                  the outcome states, labels and exit codes; a small JSON-schema validator
+    gate.py                       input checks and the decision run / queue / skip / block
+    report.sh                     publishing: GitHub I/O only, every decision comes from the components below
+    context/
+      collect.py                  collects the context from the API, writes scope.json
+      github.py                   the only way to GitHub (gh api); replaced by fixtures in tests
+      diff.py                     classifies the changed files and builds diff.patch
+      documents.py                issues, linked documents, the repository guide, quoted data
+      clean-checkout.sh           removes links and agent configuration from the checkout
+      scope.schema.json           the contract between context/ and review/
+    review/
+      schema.json                 the reviewer's output, passed to the CLI as --json-schema
+      evidence.py                 the measured reading of the diff, the tool set and usage, from the reviewer's log
+      evaluate.py                 the authoritative outcome, from the complete validated result and scope
+      render.py                   presentation only: the comment and the inline comments
+    tests/                        test_context, test_evaluate, test_render, test_gate, test_evidence, test_report.sh
+```
+
+The data passed between them, and where it is checked:
+
+| From | To | What | Checked by |
+| --- | --- | --- | --- |
+| `gate.py` | review job | `verdict` (`run`, `queue`, `skip`, `block`) and a fixed-text `reason` | `report.sh publish` refuses any other verdict |
+| `context/collect.py` | `review/` | `scope.json` | `scope.schema.json`, when written and again in `evaluate.py` |
+| the reviewer | `review/` | the structured result | the CLI against `review/schema.json`, again in `evaluate.py` |
+| `review/evidence.py` | `evaluate.py` | `coverage` (`full`, `partial`, `none`), tool names, usage numbers | fixed words and numbers only |
+| `review/evaluate.py` | `render.py`, `report.sh` | the evaluation: one of the outcome states, the reasons, counts | `contracts.OUTCOMES` |
+
 ## Files
 
 | File | What it is |
 | --- | --- |
 | [`docs/frontend/pre-check/REVIEWER.md`](REVIEWER.md) | The reviewer's instructions and checklist, used word for word as its prompt |
 | [`.github/workflows/frontend-pre-check.yml`](../../../.github/workflows/frontend-pre-check.yml) | The reusable workflow (`workflow_call`) |
-| [`.github/frontend-pre-check/collect-context.sh`](../../../.github/frontend-pre-check/collect-context.sh) | Collects what the reviewer may read, from the API |
-| [`.github/frontend-pre-check/classify.py`](../../../.github/frontend-pre-check/classify.py) | Classifies the changed files: reviewed, excluded by policy, safe assets, unreviewable, needs a person |
-| [`.github/frontend-pre-check/result.schema.json`](../../../.github/frontend-pre-check/result.schema.json) | The structured result the reviewer returns |
-| [`.github/frontend-pre-check/render.py`](../../../.github/frontend-pre-check/render.py) | Validates the result, derives the outcome, escapes and scans the output |
-| [`.github/frontend-pre-check/report.sh`](../../../.github/frontend-pre-check/report.sh) | Publishes the comment, inline comments and label, and sets the status of the required check |
-| [`.github/frontend-pre-check/test_classify.py`](../../../.github/frontend-pre-check/test_classify.py), [`test_render.py`](../../../.github/frontend-pre-check/test_render.py), [`test_report.sh`](../../../.github/frontend-pre-check/test_report.sh) | The tests, run in CI |
+| [`.github/frontend-pre-check/`](../../../.github/frontend-pre-check/) | The components listed in [How it is built](#how-it-is-built) |
