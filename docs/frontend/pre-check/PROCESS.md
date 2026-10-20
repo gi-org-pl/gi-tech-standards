@@ -47,8 +47,12 @@ and accepts the pull request or rejects it with suggestions.
 | Skipped | see [When it does not run](#when-it-does-not-run) | none | skipped (counts as passed) |
 
 The labels keep the short `pre-check:` prefix; they are the one exception to "we do not use GitHub labels for pull
-requests" in [code review](../../process/CODE_REVIEW.md). "No findings" is not "safe" and not an approval. Anything automated must read the `frontend-pre-check / review` check run of
-the pull request's **head commit**, never the label: anyone with triage access, and any workflow, can set a label.
+requests" in [code review](../../process/CODE_REVIEW.md).
+
+**"No findings" is not "reviewed".** Text in the pull request cannot make the reviewer act, but it can make it
+under-report and return a falsely clean result. "No findings" is therefore neither "safe" nor an approval, and a green
+pre-check is never a person's sign-off. Anything automated must read the `frontend-pre-check / review` check run of the
+pull request's **head commit**, never the label: anyone with triage access, and any workflow, can set a label.
 
 ## What the reviewer gets
 
@@ -116,8 +120,14 @@ One comment per pull request, found again by a hidden marker and updated on ever
 - **For QA** - what to test by hand.
 
 Everything the reviewer wrote is escaped: no HTML, no images, no mentions, no links outside `github.com/gi-org-pl`,
-`gi.org.pl` and Figma, no one-click suggestions, no line breaks in one-line fields, capped lengths, and strings that
-look like credentials are redacted.
+`gi.org.pl` and Figma (a link is checked after percent-decoding, so `..` segments cannot leave the allowlisted place),
+no one-click suggestions, no line breaks in one-line fields, capped lengths, and strings that look like credentials are
+redacted. `test_render.py` locks these rules in and runs in this repository's CI.
+
+The redaction also replaces any run of 80 or more base64- or hex-like characters, because a token may come back
+encoded. That is a conscious choice: it can hide a legitimate long hash or encoded blob quoted in a finding, but it
+errs towards redacting too much, never too little. If false redactions get in the way, narrow it by an entropy
+threshold (redact only runs whose character entropy is high), never by dropping it.
 
 ## When it does not run
 
@@ -296,8 +306,14 @@ These are not code. Without them a writer can bypass the pre-check, or read the 
    repositories; this also stops them from using runner time unasked.
 7. **Allowed actions.** Organisation → Settings → Actions → General → Policies: allow `anthropics/claude-code-action`,
    `actions/checkout` and reusable workflows from `gi-org-pl/gi-tech-standards`.
-8. **Read the right signal.** Automation that depends on the pre-check reads the `frontend-pre-check / review` check run of the
-   head commit, never the label.
+8. **Read the right signal.** Automation that depends on the pre-check reads the `frontend-pre-check / review` check run
+   of the head commit, never the label, and nobody treats a green pre-check as a sign-off.
+9. **Re-audit on every bump of the action.** The secret stays safe because of the reviewer's sandbox in `analyse`: the
+   `Read` scope and denylist (`/proc`, `~/.ssh`, `~/.claude*`, `/tmp`, runner temp and tools, `.git/`), no shell, no web,
+   no MCP servers, with the redaction in `render.py` only as a backstop. When the pinned SHA of
+   `anthropics/claude-code-action` (or the Claude Code version it installs) is bumped, check again in its source and in
+   the first run's log which tools, MCP servers, settings sources and permission mode it uses, and whether the
+   denylist still covers where it keeps prompts, logs and credentials.
 
 **Required workflows.** An organisation ruleset that requires a workflow would run the pre-check without a caller file
 in the repository, so a pull request could not edit it. GitHub offers that rule ("Require workflows to pass before
@@ -314,4 +330,5 @@ that the ruleset points at, pinned by SHA.
 | [`.github/frontend-pre-check/collect-context.sh`](../../../.github/frontend-pre-check/collect-context.sh) | Collects what the reviewer may read, from the API |
 | [`.github/frontend-pre-check/result.schema.json`](../../../.github/frontend-pre-check/result.schema.json) | The structured result the reviewer returns |
 | [`.github/frontend-pre-check/render.py`](../../../.github/frontend-pre-check/render.py) | Validates and escapes the result, derives the outcome |
+| [`.github/frontend-pre-check/test_render.py`](../../../.github/frontend-pre-check/test_render.py) | Tests of the escaping, run in CI |
 | [`.github/frontend-pre-check/report.sh`](../../../.github/frontend-pre-check/report.sh) | Posts the Pre-check comment and the inline comments, sets the label and the status |
