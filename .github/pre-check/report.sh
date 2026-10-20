@@ -9,7 +9,8 @@
 #           the pull request while the review runs
 #   report  render RESULT_JSON into the comment, set the label, log usage and
 #           exit 1 when changes are needed
-#   error   say in the comment that the pre-check did not finish
+#   error   take the labels off and say in the comment that the pre-check
+#           did not finish
 #   skipped take the labels off and, if there is a Pre-check comment, say that
 #           the new commits were not pre-checked (SKIP_REASON, HEAD_SHA)
 #
@@ -80,6 +81,8 @@ start)
   ;;
 error)
   current_or_exit
+  remove_label "$LABEL_PASSED"
+  remove_label "$LABEL_CHANGES"
   body=$(mktemp)
   {
     echo "$MARKER"
