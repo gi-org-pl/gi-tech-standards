@@ -4,37 +4,40 @@
   "required": ["result", "summary", "decisions", "findings", "checked", "not_checked", "qa"],
   "properties": {
     "result": { "type": "string", "enum": ["passed", "changes"] },
-    "summary": { "type": "string" },
+    "summary": { "type": "string", "maxLength": 1000 },
     "decisions": {
       "type": "object",
       "additionalProperties": false,
       "required": ["data_structures", "state", "api_contracts", "ux_behaviours", "new_dependencies", "architecture"],
       "properties": {
-        "data_structures": { "type": "array", "items": { "type": "string" } },
-        "state": { "type": "array", "items": { "type": "string" } },
-        "api_contracts": { "type": "array", "items": { "type": "string" } },
-        "ux_behaviours": { "type": "array", "items": { "type": "string" } },
-        "new_dependencies": { "type": "array", "items": { "type": "string" } },
-        "architecture": { "type": "array", "items": { "type": "string" } }
+        "data_structures": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+        "state": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+        "api_contracts": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+        "ux_behaviours": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+        "new_dependencies": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+        "architecture": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } }
       }
     },
     "findings": {
       "type": "array",
+      "maxItems": 30,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["severity", "path", "title", "comment"],
+        "required": ["severity", "path", "title", "body", "inline"],
         "properties": {
           "severity": { "type": "string", "enum": ["blocking", "non-blocking"] },
-          "path": { "type": "string" },
-          "line": { "type": "integer" },
-          "title": { "type": "string" },
-          "comment": { "type": "string", "enum": ["new", "earlier", "none"] }
+          "path": { "type": "string", "maxLength": 400 },
+          "line": { "type": "integer", "minimum": 1 },
+          "side": { "type": "string", "enum": ["RIGHT", "LEFT"] },
+          "title": { "type": "string", "maxLength": 200 },
+          "body": { "type": "string", "maxLength": 3000 },
+          "inline": { "type": "boolean" }
         }
       }
     },
-    "checked": { "type": "array", "items": { "type": "string" } },
-    "not_checked": { "type": "array", "items": { "type": "string" } },
-    "qa": { "type": "array", "items": { "type": "string" } }
+    "checked": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+    "not_checked": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } },
+    "qa": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 600 } }
   }
 }
