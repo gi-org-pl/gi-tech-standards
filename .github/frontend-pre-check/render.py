@@ -24,6 +24,7 @@ import json
 import os
 import re
 import sys
+from urllib.parse import unquote, urlsplit
 
 MARKER = "<!-- gi-pre-check -->"
 FINDING_MARKER = "<!-- gi-pre-check-finding {} -->"
@@ -31,9 +32,47 @@ MAX_COMMENT = 60000
 MAX_ITEMS = 20
 MAX_FINDINGS = 30
 MAX_INLINE = 15
-ALLOWED_LINK = re.compile(
+LINK_SHAPE = re.compile(
     r"^https://(github\.com/gi-org-pl/|gi\.org\.pl/|(www\.)?figma\.com/)[A-Za-z0-9._~/?=&%:+#-]*$"
 )
+ALLOWED_HOSTS = {"github.com", "gi.org.pl", "figma.com", "www.figma.com"}
+
+
+def allowed_link(url):
+    """True for a link to an allowlisted place, and only there.
+
+    The shape check alone would pass https://github.com/gi-org-pl/../other,
+    which a browser resolves outside the organisation. So the path is also
+    percent-decoded until it is stable (catching double encoding such as
+    %252e) and rejected if it holds a "." or ".." segment, a backslash or an
+    empty segment; the host must be one of the allowlisted ones, without
+    user information or a port.
+    """
+    if not isinstance(url, str) or not LINK_SHAPE.match(url):
+        return False
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    netloc = parts.netloc.lower()
+    if parts.scheme != "https" or "@" in netloc or ":" in netloc or netloc not in ALLOWED_HOSTS:
+        return False
+    path = parts.path
+    for _ in range(10):
+        decoded = unquote(path)
+        if decoded == path:
+            break
+        path = decoded
+    else:
+        return False
+    if "\\" in path or "//" in path or path.startswith("/.."):
+        return False
+    if any(segment in (".", "..") for segment in path.split("/")):
+        return False
+    if netloc == "github.com" and not path.startswith("/gi-org-pl/"):
+        return False
+    return True
+
 SECRET_PATTERNS = [
     re.compile(r"sk-ant-[A-Za-z0-9_-]{8,}"),
     re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}"),
@@ -70,7 +109,7 @@ def escape_plain(text):
 
     def link(match):
         label, url = match.group(1), match.group(2)
-        if ALLOWED_LINK.match(url):
+        if allowed_link(url):
             return "[{}]({})".format(label, url)
         return "{} (`{}`)".format(label, url.replace("`", ""))
 
@@ -78,7 +117,7 @@ def escape_plain(text):
 
     def bare(match):
         url = match.group(0)
-        return url if ALLOWED_LINK.match(url) else "`{}`".format(url)
+        return url if allowed_link(url) else "`{}`".format(url)
 
     # Bare addresses outside an allowlisted link become code, not links.
     parts = re.split(r"(\[[^\]\n]*\]\([^)\s]*\))", text)
@@ -300,7 +339,7 @@ def main():
     if left_out:
         lines.append("- Left out of the diff as tests, test helpers, generated, lock or binary files: " + ", ".join(code(n) for n in left_out) + ".")
     if scope.get("figma"):
-        links = " ".join("[{}]({})".format(i + 1, url) for i, url in enumerate(scope["figma"]) if ALLOWED_LINK.match(url))
+        links = " ".join("[{}]({})".format(i + 1, url) for i, url in enumerate(scope["figma"]) if allowed_link(url))
         lines.append("- Visual fidelity against the Figma design was judged only from the design comparison in the pull request description: the reviewer checks that it is there and covers the changed views, but sees neither Figma nor the images. Figma links: " + links + ".")
     lines += ["- " + one_line(note, 400) for note in scope.get("notes", [])]
     lines += ["- " + one_line(item, 400) for item in result["not_checked"][:MAX_ITEMS]]
@@ -317,7 +356,7 @@ def main():
         "[the reviewer instructions](https://github.com/gi-org-pl/gi-tech-standards/blob/{}/docs/frontend/pre-check/REVIEWER.md). "
         "Advisory only: the reviewer can be misled by the content it reviews. The result that counts is the "
         "`frontend-pre-check / review` check of the head commit; a person accepts or rejects the pull request.</sub>"
-    ).format(re.sub(r"[^0-9a-f]", "", head)[:7], model, run_url if ALLOWED_LINK.match(run_url) else "", standards)
+    ).format(re.sub(r"[^0-9a-f]", "", head)[:7], model, run_url if allowed_link(run_url) else "", standards)
 
     write("outcome", outcome)
     write("comment.md", MARKER + "\n## Pre-check\n\n" + body + footer + "\n")
