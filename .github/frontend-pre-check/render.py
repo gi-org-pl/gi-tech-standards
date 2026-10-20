@@ -314,9 +314,9 @@ def main():
 
     footer = (
         "\n\n<sub>AI pre-check of commit `{}` with model `{}` ([workflow run]({})), following "
-        "[the reviewer instructions](https://github.com/gi-org-pl/gi-tech-standards/blob/{}/docs/frontend/PRE_CHECK_REVIEWER.md). "
+        "[the reviewer instructions](https://github.com/gi-org-pl/gi-tech-standards/blob/{}/docs/frontend/pre-check/REVIEWER.md). "
         "Advisory only: the reviewer can be misled by the content it reviews. The result that counts is the "
-        "`pre-check / review` check of the head commit; a person accepts or rejects the pull request.</sub>"
+        "`frontend-pre-check / review` check of the head commit; a person accepts or rejects the pull request.</sub>"
     ).format(re.sub(r"[^0-9a-f]", "", head)[:7], model, run_url if ALLOWED_LINK.match(run_url) else "", standards)
 
     write("outcome", outcome)

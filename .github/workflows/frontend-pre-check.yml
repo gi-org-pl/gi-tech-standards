@@ -1,8 +1,8 @@
-name: pre-check
+name: frontend-pre-check
 
 # Reusable AI pre-check of a front-end pull request. Process, setup and the
-# security model: docs/process/PRE_CHECK.md. Reviewer instructions:
-# docs/frontend/PRE_CHECK_REVIEWER.md.
+# security model: docs/frontend/pre-check/PROCESS.md. Reviewer instructions:
+# docs/frontend/pre-check/REVIEWER.md.
 #
 # Three jobs, so that no job holds both the subscription secret and a token
 # that can write:
@@ -10,7 +10,8 @@ name: pre-check
 #   analyse - the reviewer; the secret, a read-only token, read-only tools,
 #             no way to post anything; returns a structured result
 #   review  - publishes; a write token, no secret, no code of the pull
-#             request; its status is the check to require (pre-check / review)
+#             request; its status is the check to require
+#             (frontend-pre-check / review)
 #
 # The scripts and the reviewer instructions are always taken from the commit
 # of this workflow file (job.workflow_sha), so pinning the caller's uses: to a
@@ -97,7 +98,7 @@ jobs:
     # A burst of events on one pull request (an edit storm) cancels the
     # waiting gates; only the last one goes on.
     concurrency:
-      group: pre-check-gate-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
+      group: frontend-pre-check-gate-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: true
     outputs:
       verdict: ${{ steps.decide.outputs.verdict }}
@@ -209,7 +210,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          sparse-checkout: .github/pre-check
+          sparse-checkout: .github/frontend-pre-check
           persist-credentials: false
           path: .pre-check-tools
 
@@ -225,7 +226,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SKIP_REASON: ${{ steps.decide.outputs.reason }}
           GH_TOKEN: ${{ github.token }}
-        run: bash .pre-check-tools/.github/pre-check/report.sh skipped
+        run: bash .pre-check-tools/.github/frontend-pre-check/report.sh skipped
 
       - name: Take the labels off before the review
         if: steps.decide.outputs.verdict == 'run'
@@ -234,7 +235,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
-        run: bash .pre-check-tools/.github/pre-check/report.sh start
+        run: bash .pre-check-tools/.github/frontend-pre-check/report.sh start
 
   analyse:
     name: analyse
@@ -249,7 +250,7 @@ jobs:
       pull-requests: read
       issues: read
     concurrency:
-      group: pre-check-analyse-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: frontend-pre-check-analyse-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
       REPO: ${{ github.repository }}
@@ -304,7 +305,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           status=0
-          bash "$STANDARDS_DIR/.github/pre-check/collect-context.sh" || status=$?
+          bash "$STANDARDS_DIR/.github/frontend-pre-check/collect-context.sh" || status=$?
           if [ -f "$CTX/abort" ]; then
             echo "abort=$(tr -cd 'a-z_' < "$CTX/abort")" >> "$GITHUB_OUTPUT"
             exit 1
@@ -315,7 +316,7 @@ jobs:
             echo "prompt<<$delimiter"
             cat "$CTX/PROMPT.md"
             echo "$delimiter"
-            echo "schema=$(jq -c . "$STANDARDS_DIR/.github/pre-check/result.schema.json")"
+            echo "schema=$(jq -c . "$STANDARDS_DIR/.github/frontend-pre-check/result.schema.json")"
             echo "scope=$(jq -c . "$CTX/scope.json")"
           } >> "$GITHUB_OUTPUT"
 
@@ -372,7 +373,7 @@ jobs:
       pull-requests: write
       issues: write
     concurrency:
-      group: pre-check-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: frontend-pre-check-review-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
       REPO: ${{ github.repository }}
@@ -386,7 +387,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          sparse-checkout: .github/pre-check
+          sparse-checkout: .github/frontend-pre-check
           persist-credentials: false
           path: .pre-check-tools
 
@@ -403,7 +404,7 @@ jobs:
           STANDARDS_SHA: ${{ job.workflow_sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          tools=.pre-check-tools/.github/pre-check
+          tools=.pre-check-tools/.github/frontend-pre-check
           # report.sh error exits 1 (and so ends this step), or 0 when the pull
           # request has moved on; either way nothing else is published.
           # A gate cancelled by a newer event: that run reports, this one

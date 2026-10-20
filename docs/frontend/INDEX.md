@@ -24,9 +24,12 @@ and maintain code quality. If you need to use a different technology, please see
 - [State Management](tools/STATE_MANAGEMENT.md)
 - [Testing](tools/TESTING.md)
 
+## Pre-check
+
+- [Process](pre-check/PROCESS.md) - the AI pre-check of every front-end pull request: flow, outcomes, setup and security
+- [Reviewer instructions](pre-check/REVIEWER.md) - what the reviewer looks for, used word for word as its prompt
+
 ## Resources
 
 - [Vite Project Boilerplate](https://github.com/Generacja-Innowacja/vite-project-boilerplate)
 - [Claude Rules](CLAUDE.md)
-- [Pre-check reviewer instructions](PRE_CHECK_REVIEWER.md) - what the AI pre-check of every pull request looks for
-  ([process](../process/PRE_CHECK.md))

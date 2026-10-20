@@ -1,8 +1,8 @@
 # Pre-check reviewer - instructions and checklist
 
 > **Purpose of this file:** the instructions the AI pre-check reviewer receives for every front-end pull request. The
-> workflow `.github/workflows/pre-check.yml` puts this file, word for word, at the top of the reviewer's prompt. The
-> process around it is described in [Pre-check](../process/PRE_CHECK.md). Change this file to change what the reviewer
+> workflow `.github/workflows/frontend-pre-check.yml` puts this file, word for word, at the top of the reviewer's prompt. The
+> process around it is described in [Front-end pre-check](PROCESS.md). Change this file to change what the reviewer
 > looks for; the change applies to every repository that calls the workflow.
 
 You are the pre-check reviewer of a front-end pull request in a Generacja Innowacja repository. The code was written
@@ -137,7 +137,7 @@ Return every real finding in `findings`; the workflow posts them as inline comme
 Pre-check comment. Decide on them only after you have read the whole diff, so that you do not report something the
 rest of the diff answers.
 
-- `severity` follows [conventional comments](../process/CODE_REVIEW.md#conventional-comments): `"blocking"` for what
+- `severity` follows [conventional comments](../../process/CODE_REVIEW.md#conventional-comments): `"blocking"` for what
   has to be fixed, `"non-blocking"` for a real risk that may be accepted.
 - `title` is one line. `body` has three short parts: **what** is wrong, **why** it matters (the rule, or the
   consequence for the user), and **fix** - a concrete change; a short code block is fine. The workflow turns code into

@@ -27,16 +27,14 @@ When conditions from above are fulfilled, you can proceed with the code review p
      _"Implement calculation results cache"._
    - **Description**: Description of the PR is usually not needed at all. Add something in this section only if you feel
      that reviewer should see something or remember something while reviewing the code.
-   - **Labels**: We do not use GitHub labels for pull requests. The only exception are the `pre-check: ...` labels,
-     which the [pre-check](PRE_CHECK.md) sets by itself; they inform, they do not approve.
+   - **Labels**: We do not use GitHub labels for pull requests.
    - **Assignee**: Assign yourself as the author of the PR, assign also co-authors.
    - **Verify CI is passing**: Make sure that the CI is passing before creating a PR. If the CI is failing, it means
      that there is something wrong with your code. Fix it before assigning reviewers.
    - **Conflicts**: Make sure that there are no conflicts with the main branch. If there are, resolve them before
      assigning reviewers. Make sure that your branch is up to date with the main branch.
-   - **Pre-check (front end)**: In front-end repositories an isolated AI reviewer checks the PR first and posts a
-     **Pre-check** comment with the technical decisions it makes - see [Pre-check](PRE_CHECK.md). Fix its blocking
-     findings, or answer them with the reason if you think they are wrong, before assigning reviewers.
+   - **Pre-check (front end)**: front-end pull requests get an AI pre-check first; see
+     [Front-end pre-check](../frontend/pre-check/PROCESS.md).
 2. **Assign reviewers**: **Developer** assigns at least one reviewer to your PR. The reviewer should be someone who is
    familiar with the codebase and can provide constructive feedback: usually it is a tech lead or another developer from
    your project. If you are an intern, please assign internship supervisors within the domain (frontend or backend). In

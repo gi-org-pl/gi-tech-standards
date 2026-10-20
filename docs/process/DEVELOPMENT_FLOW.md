@@ -15,7 +15,7 @@ _This section will be added later._
 ## Code review
 
 When the code is ready for review, follow [this](CODE_REVIEW.md) document to proceed with code review process. In
-front-end repositories, the review starts with an AI [pre-check](PRE_CHECK.md).
+front-end repositories, the review starts with an AI [pre-check](../frontend/pre-check/PROCESS.md).
 
 ## Deployment
 

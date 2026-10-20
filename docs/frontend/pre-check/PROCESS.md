@@ -1,7 +1,7 @@
-# Pre-check
+# Front-end pre-check
 
 Pre-check is an AI review that every front-end pull request gets before a person looks at it. It is a step of the
-[code review](CODE_REVIEW.md) process, not a replacement for it, and it is **advisory**: the reviewer can be misled by
+[code review](../../process/CODE_REVIEW.md) process, not a replacement for it, and it is **advisory**: the reviewer can be misled by
 the content it reviews, so it never replaces a person's approval. Back end is out of scope.
 
 ## Why
@@ -24,10 +24,10 @@ and accepts the pull request or rejects it with suggestions.
 2. **Pre-check.** When the pull request is opened, updated, reopened, marked ready for review, or its description or
    base branch changes, the reviewer runs:
    - real findings become inline comments, each with what is wrong, why and how to fix it, labelled with
-     [conventional comments](CODE_REVIEW.md#conventional-comments) (`[blocking]` or `[non-blocking]`),
+     [conventional comments](../../process/CODE_REVIEW.md#conventional-comments) (`[blocking]` or `[non-blocking]`),
    - one comment headed **Pre-check** summarises the outcome and the technical decisions,
    - one label is set: `pre-check: no findings`, `pre-check: changes` or `pre-check: human review`,
-   - the check `pre-check / review` passes only for "no findings"; it fails for changes needed and for a pull request
+   - the check `frontend-pre-check / review` passes only for "no findings"; it fails for changes needed and for a pull request
      the pre-check cannot judge.
 3. **Fixes.** The author fixes the blocking findings and pushes. The pre-check runs again and updates the same
    Pre-check comment. A finding the author thinks is wrong is answered in its thread with the reason; the person
@@ -38,7 +38,7 @@ and accepts the pull request or rejects it with suggestions.
 
 ## Outcomes
 
-| Outcome | When | Label | `pre-check / review` |
+| Outcome | When | Label | `frontend-pre-check / review` |
 | --- | --- | --- | --- |
 | No findings | no blocking finding, and the whole pull request could be reviewed | `pre-check: no findings` | passes |
 | Changes needed | at least one blocking finding | `pre-check: changes` | fails |
@@ -46,7 +46,8 @@ and accepts the pull request or rejects it with suggestions.
 | Not finished | the reviewer failed, returned no valid result, or a file name contains a control character or a backtick | none | fails |
 | Skipped | see [When it does not run](#when-it-does-not-run) | none | skipped (counts as passed) |
 
-"No findings" is not "safe" and not an approval. Anything automated must read the `pre-check / review` check run of
+The labels keep the short `pre-check:` prefix; they are the one exception to "we do not use GitHub labels for pull
+requests" in [code review](../../process/CODE_REVIEW.md). "No findings" is not "safe" and not an approval. Anything automated must read the `frontend-pre-check / review` check run of
 the pull request's **head commit**, never the label: anyone with triage access, and any workflow, can set a label.
 
 ## What the reviewer gets
@@ -72,11 +73,11 @@ its result after escaping it.
 
 ## What it checks
 
-The full checklist is in [the reviewer instructions](../frontend/PRE_CHECK_REVIEWER.md). In short:
+The full checklist is in [the reviewer instructions](REVIEWER.md). In short:
 
 - **bugs** typical for our stack - logic errors, unvalidated or unhandled data, async races, effect and hook mistakes,
   hydration mismatches, missing translations, accessibility that breaks use, security,
-- **compliance** with written rules only - the repository's `AGENTS.md` and [front-end standards](../frontend/INDEX.md),
+- **compliance** with written rules only - the repository's `AGENTS.md` and [front-end standards](../INDEX.md),
   each finding naming the rule,
 - **design and documentation** - the issue's acceptance criteria, linked documents, the design comparison when the
   issue links Figma, documentation updated with the change, a pull request description that matches the diff,
@@ -120,7 +121,7 @@ look like credentials are redacted.
 
 ## When it does not run
 
-The `pre-check / gate` job decides. It skips the review, green and with a notice, when:
+The `frontend-pre-check / gate` job decides. It skips the review, green and with a notice, when:
 
 - the event is a merge queue entry (`merge_group`) - the pull request was pre-checked already,
 - the pull request comes from a fork - secrets are not available there,
@@ -129,11 +130,11 @@ The `pre-check / gate` job decides. It skips the review, green and with a notice
 - the pull request or the push comes from a bot (Dependabot and similar),
 - the person who triggered the run has no write access.
 
-A skipped `pre-check / review` job counts as passed for a required status check. Except for `merge_group`, a skip
+A skipped `frontend-pre-check / review` job counts as passed for a required status check. Except for `merge_group`, a skip
 also withdraws an earlier result - labels off, the Pre-check comment marked "not run for commit ..." - on a best-effort
 basis; a person's approval is then the only check, as before the pre-check.
 
-The gate **stops** a run, with a failing `pre-check / review`, when the pull request had more than
+The gate **stops** a run, with a failing `frontend-pre-check / review`, when the pull request had more than
 `max_runs_per_hour` runs in the last hour. If the gate itself fails, the review job runs anyway and fails, so a broken
 gate cannot pass a required check. A run whose commit is no longer the head of the pull request publishes nothing.
 
@@ -161,11 +162,11 @@ the check fails; re-run it later.
 
 ## Setting it up in a repository
 
-The workflow is reusable: it lives here, in [`.github/workflows/pre-check.yml`](../../.github/workflows/pre-check.yml),
-with its scripts in [`.github/pre-check/`](../../.github/pre-check/). A repository calls it with a short workflow:
+The workflow is reusable: it lives here, in [`.github/workflows/frontend-pre-check.yml`](../../../.github/workflows/frontend-pre-check.yml),
+with its scripts in [`.github/frontend-pre-check/`](../../../.github/frontend-pre-check/). A repository calls it with a short workflow:
 
 ```yaml
-name: pre-check
+name: frontend-pre-check
 
 on:
   pull_request:
@@ -175,15 +176,15 @@ on:
 permissions: {}
 
 jobs:
-  pre-check:
-    name: pre-check
+  frontend-pre-check:
+    name: frontend-pre-check
     if: github.event.action != 'edited' || github.event.changes.body != null || github.event.changes.base != null
     permissions:
       contents: read
       pull-requests: write
       issues: write
       actions: read
-    uses: gi-org-pl/gi-tech-standards/.github/workflows/pre-check.yml@<full commit SHA> # main on <date>
+    uses: gi-org-pl/gi-tech-standards/.github/workflows/frontend-pre-check.yml@<full commit SHA> # main on <date>
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
@@ -193,10 +194,10 @@ jobs:
   when its caller is bumped in a reviewed pull request.
 - **`edited` with the job's `if`** re-runs the pre-check when the description changes - it carries the design
   comparison - or the pull request gets a new base branch; edits of the title alone start nothing. The filter sits in
-  the caller on purpose: a run skipped there creates no `pre-check / review` check, so it cannot replace the last
+  the caller on purpose: a run skipped there creates no `frontend-pre-check / review` check, so it cannot replace the last
   result, while a review skipped by the gate would count as passed.
 - **`converted_to_draft`** withdraws the result when a pull request goes back to draft.
-- **`merge_group`** keeps a required `pre-check / review` from blocking a merge queue.
+- **`merge_group`** keeps a required `frontend-pre-check / review` from blocking a merge queue.
 - **`actions: read`** lets the gate count the runs of the last hour.
 
 ## Approval
@@ -209,7 +210,7 @@ The pre-check never approves. Its label and its check inform; a person accepts:
 
 The options, from the simplest:
 
-1. **Required status check** `pre-check / review` plus the existing human approval (recommended): nothing merges with
+1. **Required status check** `frontend-pre-check / review` plus the existing human approval (recommended): nothing merges with
    unresolved blocking findings or with changes the pre-check cannot judge, and a person still accepts the pull
    request. A pull request that needs a person (CI, lock files, too large) then also needs someone with the right to
    bypass the ruleset, or a split into smaller pull requests.
@@ -295,7 +296,7 @@ These are not code. Without them a writer can bypass the pre-check, or read the 
    repositories; this also stops them from using runner time unasked.
 7. **Allowed actions.** Organisation → Settings → Actions → General → Policies: allow `anthropics/claude-code-action`,
    `actions/checkout` and reusable workflows from `gi-org-pl/gi-tech-standards`.
-8. **Read the right signal.** Automation that depends on the pre-check reads the `pre-check / review` check run of the
+8. **Read the right signal.** Automation that depends on the pre-check reads the `frontend-pre-check / review` check run of the
    head commit, never the label.
 
 **Required workflows.** An organisation ruleset that requires a workflow would run the pre-check without a caller file
@@ -308,9 +309,9 @@ that the ruleset points at, pinned by SHA.
 
 | File | What it is |
 | --- | --- |
-| [`docs/frontend/PRE_CHECK_REVIEWER.md`](../frontend/PRE_CHECK_REVIEWER.md) | The reviewer's instructions and checklist, used word for word as its prompt |
-| [`.github/workflows/pre-check.yml`](../../.github/workflows/pre-check.yml) | The reusable workflow (`workflow_call`) |
-| [`.github/pre-check/collect-context.sh`](../../.github/pre-check/collect-context.sh) | Collects what the reviewer may read, from the API |
-| [`.github/pre-check/result.schema.json`](../../.github/pre-check/result.schema.json) | The structured result the reviewer returns |
-| [`.github/pre-check/render.py`](../../.github/pre-check/render.py) | Validates and escapes the result, derives the outcome |
-| [`.github/pre-check/report.sh`](../../.github/pre-check/report.sh) | Posts the Pre-check comment and the inline comments, sets the label and the status |
+| [`docs/frontend/pre-check/REVIEWER.md`](REVIEWER.md) | The reviewer's instructions and checklist, used word for word as its prompt |
+| [`.github/workflows/frontend-pre-check.yml`](../../../.github/workflows/frontend-pre-check.yml) | The reusable workflow (`workflow_call`) |
+| [`.github/frontend-pre-check/collect-context.sh`](../../../.github/frontend-pre-check/collect-context.sh) | Collects what the reviewer may read, from the API |
+| [`.github/frontend-pre-check/result.schema.json`](../../../.github/frontend-pre-check/result.schema.json) | The structured result the reviewer returns |
+| [`.github/frontend-pre-check/render.py`](../../../.github/frontend-pre-check/render.py) | Validates and escapes the result, derives the outcome |
+| [`.github/frontend-pre-check/report.sh`](../../../.github/frontend-pre-check/report.sh) | Posts the Pre-check comment and the inline comments, sets the label and the status |

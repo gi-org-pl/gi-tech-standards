@@ -505,7 +505,7 @@ list() {
 # The prompt stays small whatever the size of the pull request: the action
 # passes it in one environment variable, which Linux limits to 128 KiB.
 {
-  cat "$STANDARDS_DIR/docs/frontend/PRE_CHECK_REVIEWER.md"
+  cat "$STANDARDS_DIR/docs/frontend/pre-check/REVIEWER.md"
   echo
   echo "---"
   echo
