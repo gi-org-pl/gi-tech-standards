@@ -1,0 +1,66 @@
+{
+  "$comment": "The scope of one pre-check run, written by context/collect.py and read by review/evaluate.py and review/render.py. Every field is required: a missing one is a broken contract, not a default.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "head", "base", "standards", "max_diff_lines", "diff_lines", "file_count", "unlisted", "truncated",
+    "reviewed", "not_reviewed", "excluded", "excluded_lines", "safe_assets", "unreviewable", "human_paths",
+    "workflow_changes", "renamed", "hunks", "issues", "figma", "docs", "repo_docs", "cut_sources", "notes"
+  ],
+  "properties": {
+    "head": { "type": "string", "maxLength": 40 },
+    "base": { "type": "string", "maxLength": 40 },
+    "standards": { "type": "string", "maxLength": 40 },
+    "max_diff_lines": { "type": "integer", "minimum": 0 },
+    "diff_lines": { "type": "integer", "minimum": 0 },
+    "file_count": { "type": "integer", "minimum": 0 },
+    "unlisted": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "reviewed": { "type": "array", "items": { "type": "string" } },
+    "not_reviewed": { "type": "array", "items": { "type": "string" } },
+    "excluded": { "type": "array", "items": { "type": "string" } },
+    "excluded_lines": { "type": "integer", "minimum": 0 },
+    "safe_assets": { "type": "array", "items": { "type": "string" } },
+    "unreviewable": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["path", "reason"],
+        "properties": { "path": { "type": "string" }, "reason": { "type": "string" } }
+      }
+    },
+    "human_paths": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["path", "reason"],
+        "properties": { "path": { "type": "string" }, "reason": { "type": "string" } }
+      }
+    },
+    "workflow_changes": { "type": "array", "items": { "type": "string" } },
+    "renamed": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["from", "to", "status"],
+        "properties": { "from": { "type": "string" }, "to": { "type": "string" }, "status": { "type": "string" } }
+      }
+    },
+    "hunks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object", "additionalProperties": false, "required": ["LEFT", "RIGHT"],
+          "properties": {
+            "LEFT": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+            "RIGHT": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+          }
+        }
+      }
+    },
+    "issues": { "type": "array", "items": { "type": "string" } },
+    "figma": { "type": "array", "items": { "type": "string" } },
+    "docs": { "type": "array", "items": { "type": "string" } },
+    "repo_docs": { "type": "array", "items": { "type": "string" } },
+    "cut_sources": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

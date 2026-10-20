@@ -7,18 +7,14 @@ can judge. A file counts as reviewed only when its text diff is in the
 reviewer's context; everything else is either excluded by the immutable
 policy below, a known-safe asset, or a reason for a person.
 
-Usage: classify.py FILES_JSON OUT_DIR
-Environment: EXCLUDE_PATHS (newline-separated, each one of EXCLUDE_POLICY),
-MAX_DIFF_LINES, MAX_PATCH_BYTES.
-Writes OUT_DIR/diff.patch and OUT_DIR/classification.json. Exits 3 with the
-reason in OUT_DIR/abort when the pull request cannot be classified safely.
+classify(files, excludes, max_lines, max_patch_bytes) returns the scope part
+of the classification and the text of diff.patch; it raises Abort with
+"exclusion_policy" or "unsafe_names" when the pull request cannot be
+classified safely.
 """
 
 import fnmatch
-import json
-import os
 import re
-import sys
 
 # The only exclusions a caller may choose from. They are anchored on file
 # suffixes or whole directory names; a caller can narrow them, never widen
@@ -78,6 +74,7 @@ UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f`]")
 CODE = re.compile(r"\.(ts|tsx|js|jsx|mjs|cjs|css)$")
 TEXTISH = re.compile(r"\.(ts|tsx|js|jsx|mjs|cjs|css|html|json|ya?ml)$")
 DOC = re.compile(r"\.(md|mdx|txt)$")
+MAX_PATCH_BYTES = 150000
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
 
 
@@ -186,26 +183,3 @@ def classify(files, excludes, max_lines, max_patch_bytes):
             "",
         ]
     return result, "\n".join(diff) + ("\n" if diff else "")
-
-
-def main():
-    files_path, out_dir = sys.argv[1:3]
-    with open(files_path, encoding="utf-8") as fh:
-        files = json.load(fh)
-    excludes = [p for p in os.environ.get("EXCLUDE_PATHS", "").splitlines() if p.strip()]
-    max_lines = int(os.environ.get("MAX_DIFF_LINES", "3000"))
-    max_patch = int(os.environ.get("MAX_PATCH_BYTES", "150000"))
-    try:
-        result, diff = classify(files, excludes, max_lines, max_patch)
-    except Abort as reason:
-        with open(os.path.join(out_dir, "abort"), "w", encoding="utf-8") as fh:
-            fh.write(str(reason))
-        sys.exit(3)
-    with open(os.path.join(out_dir, "diff.patch"), "w", encoding="utf-8") as fh:
-        fh.write(diff)
-    with open(os.path.join(out_dir, "classification.json"), "w", encoding="utf-8") as fh:
-        json.dump(result, fh)
-
-
-if __name__ == "__main__":
-    main()
