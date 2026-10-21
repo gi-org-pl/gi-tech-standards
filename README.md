@@ -1,3 +1,5 @@
+![gi-tech-standards header](https://raw.githubusercontent.com/gi-org-pl/gi-tech-standards/main/.github/image/header.png)
+
 # Generacja Innowacja - technical standards
 
 This repository contains all documents regarding technical standards developed by **Generacja Innowacja** engineering
