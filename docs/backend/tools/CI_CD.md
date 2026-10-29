@@ -36,6 +36,22 @@ An action is a ready-made step that a workflow can use, like `actions/checkout` 
 >
 > Do not feel anxious to ask. Usually it takes one message to get the answer.
 
+> **#4. Actions in jobs that run on our self-hosted runners MUST be pinned to a full commit SHA. All other actions
+> SHOULD be pinned to a full commit SHA too.**
+>
+> A tag, like `v6`, can be moved to any other commit by whoever controls the action repository. That is how the
+> `tj-actions/changed-files` attack worked: existing tags were moved to a malicious commit, and every workflow that used
+> a tag ran it. A commit SHA cannot be moved.
+>
+> Put the version in a comment after the SHA, so the reader knows what it is. Dependabot updates both:
+>
+> ```yaml
+> - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+> ```
+>
+> The same applies to actions used inside our own composite actions, as they run on the same runner. Pinning our action
+> by SHA does not pin what it uses by tag.
+
 ## Creating actions
 
 When the same steps are copied between repositories, or there is no official action for the job, organization creates
@@ -113,9 +129,10 @@ In the structure as above, each file serves its own purpose:
 
 > **#8. Action MUST be released with two tags: full version `v1.2.3` and major version `v1`.**
 >
-> Projects use the major tag, for example `gi-org-pl/check-version-action@v1`, so they get fixes without changing
-> their workflows. Each full version gets its own GitHub release. After the release, move the major tag to the new
-> version:
+> Projects pin the commit of a full version, for example
+> `gi-org-pl/check-version-action@<commit SHA> # v1.2.3` (see [Using actions](#using-actions), rule #4), and
+> Dependabot opens a pull request when a new version is released. Each full version gets its own GitHub release. After
+> the release, move the major tag to the new version, for the workflows that still use tags:
 >
 > ```shell
 > git tag v1.2.3 && git push origin v1.2.3
