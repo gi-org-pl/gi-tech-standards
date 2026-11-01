@@ -16,6 +16,14 @@ Testing has no document of its own yet. The layout of test directories is in
 [Structure](conventions/STRUCTURE.md#tests), and the names of Gherkin files and scenarios are in
 [Naming](conventions/NAMING.md#cucumberjs).
 
+## Security
+
+Rules that protect our services and the data they hold apply to every backend project.
+
+> **Security** covers secrets, pipelines, dependencies, containers, infrastructure, application code and personal data.
+>
+> [Read more about security standards](/docs/security/INDEX.md)
+
 ## Conventions
 
 - [Structure](conventions/STRUCTURE.md) - the four project types (service, Lambda function, CLI tool, scheduled
