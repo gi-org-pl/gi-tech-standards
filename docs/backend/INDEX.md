@@ -36,6 +36,14 @@ Basic languages, libraries, frameworks and tools that are used in the projects, 
 >
 > [Read more about CI/CD tools](/docs/backend/tools/CI_CD.md)
 
+## Security
+
+Rules that protect our services and the data they hold apply to every backend project.
+
+> **Security** covers secrets, pipelines, dependencies, containers, infrastructure, application code and personal data.
+>
+> [Read more about security standards](/docs/security/INDEX.md)
+
 ## Conventions
 
 Set of practices that are used to ensure that the code, but also all processes around it are consistent and
