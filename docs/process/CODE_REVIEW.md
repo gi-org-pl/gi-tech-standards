@@ -65,48 +65,13 @@ When conditions from above are fulfilled, you can proceed with the code review p
 
 ## Conventional Comments
 
-We use a system of prefixes so the author of the code immediately knows how to react to a specific comment. It eliminates guesswork and streamlines the entire review process.
+We use [Conventional Comments](https://conventionalcomments.org/) exactly as described on their website, without any
+changes of our own. Each review comment starts with a label that says what kind of comment it is, such as `issue`,
+`suggestion`, `question`, `nitpick` or `praise`, optionally followed by a decoration that says whether it blocks the
+merge, for example `**issue (blocking):**` or `**suggestion (non-blocking):**`. This way the author immediately knows
+how to react to each comment: whether they can merge, or have to fix something first.
 
-### How to use it?
-
-When reviewing code on GitHub, start your comment with a label in bold, optionally followed by a decoration in
-parentheses, and a colon:
-
-```text
-**<label> (<decoration>):** <subject>
-```
-
-Use one of these labels:
-
-- **`praise`** – Appreciating a good piece of code! Let's support each other.
-- **`nitpick`** – Small detail: typo, formatting, etc. Change it if you have a moment, but don't sweat it.
-- **`suggestion`** – A proposal for a better solution.
-- **`issue`** – A problem in the code, such as a logical error or broken functionality.
-- **`question`** – A question about the author's intent. It may become an issue if the answer reveals an error.
-- **`todo`** – A small, trivial, but necessary change.
-- **`chore`** – A technical task that needs to be done before the merge (e.g., updating dependencies, cleaning config).
-- **`note`** – Something the author should know about, that does not require any change.
-
-Add a decoration to say whether the comment blocks the merge:
-
-- **`(blocking)`** – Change is required for the code to move forward.
-- **`(non-blocking)`** – Worth considering, but it does not block the merge.
-
-Examples:
-
-```text
-**issue (blocking):** This query runs once for every answer. Load all the answers in one query instead.
-**suggestion (non-blocking):** `PickType` would keep this request in sync with the model.
-**nitpick:** Typo in the scenario name.
-```
-
-### What does it bring us?
-
-- **Clarity:** The author knows exactly whether they can merge or if they need to fix critical issues first.
-- **Speed:** No time wasted on endless discussions about non-critical things.
-- **Culture:** Space for constructive suggestions without putting unnecessary pressure on the developer.
-
-Full documentation and examples can be found at [conventionalcomments.org](https://conventionalcomments.org/).
+The full list of labels, decorations and examples is on [conventionalcomments.org](https://conventionalcomments.org/).
 
 **Legend:**
 
