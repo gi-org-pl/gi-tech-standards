@@ -29,6 +29,9 @@ git config --global gpg.format ssh
 # replace <path to your ssh key> with your real SSH public key
 # example: ~/.ssh/id_ed25519.pub
 git config --global user.signingkey <path to your ssh key>
+
+# sign every commit
+git config --global commit.gpgsign true
 ```
 
 You need to repeat these steps on each new machine you'll be using for development. Wchich you may find to be quite annoying, instead, you may also
@@ -41,7 +44,7 @@ here is an example:
 [user]
     name = your-name
     email = youremail@email.com
-    signkey = <path to your ssh key>
+    signingkey = <path to your ssh key>
 [push]
     autoSetupRemote = true
     default = current 
@@ -49,6 +52,8 @@ here is an example:
     rebase = true
 [gpg]
     format = ssh
+[commit]
+    gpgsign = true
 ```
 
 Further Reading/Reference: <https://git-scm.com/book/en/v2/Customizing-Git-Git-Configuration>
