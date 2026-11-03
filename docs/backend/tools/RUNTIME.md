@@ -24,20 +24,24 @@ The following tools are selected for server-side apps:
 > containers. Containers allow a developer to package up an application with all the parts it needs, such as libraries
 > and other dependencies, and ship it all out as one package.
 
-> **#2. Docker containers MUST be used for development and production environments.**
+> **#2. How Docker is used depends on the [project type](/docs/backend/conventions/STRUCTURE.md#project-types).**
 >
-> By using virtualization, the code will work in the same way on every machine: no matter if it is a developer's
-> laptop or a production server.
+> - **Services** MUST run in Docker containers in development and production. By using virtualization, the code will
+>   work in the same way on every machine: no matter if it is a developer's laptop or a production server.
+> - **Lambda functions** and **CLI tools** MUST use Docker for development, and for the build if they have one. In
+>   production, they run as the artifact their platform needs, such as a zip package for AWS Lambda.
+> - **Scheduled scripts** MAY run without Docker, because the GitHub Actions workflow that runs them sets up Node.js
+>   itself.
 
 > **#3. Alpine Linux MUST be used as a base image for Docker containers.**
 
-> **#4: Use standardized Dockerfile across different projects.**
+> **#4: Use standardized Dockerfile across different services.**
 >
 > Aim to maintain backend services almost identical when it comes to system configuration. One Dockerfile should be used
-> as a standard across all the projects. Take a look at these repositories to see how it is implemented:
+> as a standard across all the services. Take a look at these repositories to see how it is implemented:
 >
-> - [dzialaj-org-api](https://github.com/Generacja-Innowacja/dzialaj-org-api/blob/main/Dockerfile)
-> - [mypolitics-survey-producer-api](https://github.com/Generacja-Innowacja/mypolitics-survey-producer-api/blob/main/Dockerfile)
+> - [dzialaj-org-api](https://github.com/gi-org-pl/dzialaj-org-api/blob/main/Dockerfile)
+> - [mypolitics-survey-producer-api](https://github.com/gi-org-pl/mypolitics-survey-producer-api/blob/main/Dockerfile)
 
 > **#5. Use multi-stage builds to keep our images as small as possible.**
 >
@@ -49,7 +53,9 @@ The following tools are selected for server-side apps:
 >
 > For **Nest.js**, it is port `3000`. Do not change it, do not configure a custom port.
 
-> **#7. Docker Compose MUST be used to tie services together for local development.**
+> **#7. Docker Compose MUST be used for local development of services, Lambda functions and CLI tools.**
+>
+> For services, Compose also ties the application together with the database and other services it needs.
 
 Read more about Docker:
 
@@ -58,24 +64,27 @@ Read more about Docker:
 
 ## Node.js & TypeScript
 
-> **#1: Node.js in version 24 MUST be used.**
+> **#1: A supported LTS version of Node.js MUST be used.**
 >
-> Use the latest LTS version of Node.js to ensure access to modern JavaScript features, performance improvements,
-> and leading security standards. Node.js 24 provides excellent support for ES modules, improved performance, and better
-> security.
+> Use an LTS line that is still in active or maintenance support, today Node.js 24 or 26. New projects SHOULD start on
+> the newest LTS line. LTS versions give access to modern JavaScript features, performance improvements and security
+> fixes, and the [release schedule](https://github.com/nodejs/release#release-schedule) shows when each line stops
+> getting them.
 
 > **#2: For Node,`npm` package manager MUST be used.**
 
-> **#3: TypeScript in version 5.9 MUST be used.**
+> **#3: TypeScript in version 6 or newer MUST be used.**
+>
+> Projects SHOULD use the newest TypeScript release.
 >
 > TypeScript brings type safety to JavaScript, catching errors at compile-time rather than runtime. This significantly
 > reduces bugs and improves the developer experience with better IDE support and autocomplete.
 
-> **#4: Use standardized `tsconfig.json`.**
+> **#4: New projects SHOULD enable `strict` in `tsconfig.json`.**
 >
-> Example:
->
-> - [standardized tsconfig.json file](https://github.com/oskarbarcz/flight-tracker-api/tsconfig.json)
+> There is no shared `tsconfig.json`. Each project keeps its own, because a service, a Lambda function and a CLI tool
+> need different compiler options. Strict mode catches the most errors at compile time, so new projects turn it on from
+> the start. Existing projects MAY keep their current settings.
 
 Read more about Node.js:
 
@@ -89,7 +98,7 @@ Read more about TypeScript:
 
 ## Nest.js
 
-> **#1: Nest.js in version 11 MUST be used.**
+> **#1: Services MUST use Nest.js in version 12.**
 
 Read more about Nest.js:
 
@@ -97,7 +106,7 @@ Read more about Nest.js:
 
 ## Databases
 
-> **#1: For storing relational data, PostgreSQL in version 15 MUST be used.**
+> **#1: For storing relational data, PostgreSQL in version 16 MUST be used.**
 >
 > **PostgreSQL** a powerful, open-source object-relational database system that uses and extends the SQL language
 > combined with many features that safely store and scale the most complicated data workloads, while still keeping
@@ -111,16 +120,18 @@ Read more about Nest.js:
 > other database engines if they fit the project requirements better than PostgreSQL**, but each decision must be
 > consulted by the **_Engineering_** team before proceeding.
 
-> **#3: If applicable, Prisma ORM MUST be used for the database access layer.**
+> **#3: Services MUST use Prisma ORM for the database access layer.**
+>
+> Lambda functions MAY use the [`pg`](https://node-postgres.com/) client directly.
 
-> **#4: If applicable, Prisma in version 7 MUST be installed.**
+> **#4: Projects that use Prisma MUST install Prisma in version 7.**
 
-> **#5: If applicable, Prisma client MUST be kept in `prisma/client/` directory.**
+> **#5: Prisma client MUST be kept in `prisma/client/` directory.**
 
-> **#5: If applicable, Prisma config MUST be kept in `prisma.config.ts` file in root project directory.**
+> **#6: Prisma config MUST be kept in `prisma.config.ts` file in root project directory.**
 >
 > [See standardized prisma.config.ts file](https://github.com/oskarbarcz/flight-tracker-api/blob/main/prisma.config.ts).
 
 Read more about Prisma:
 
-- [Nest.js official documentation](https://docs.nestjs.com/)
+- [Prisma (official docs)](https://www.prisma.io/docs)

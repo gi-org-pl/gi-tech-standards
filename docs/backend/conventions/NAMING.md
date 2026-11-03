@@ -28,6 +28,9 @@ There are two things hard in programming: cache invalidation and naming things. 
 > - `main.ts`
 
 > **#3. Named export MUST be used, default export MUST NOT be used.**
+>
+> Config files are the exception, when their tool requires a default export, such as `eslint.config.mjs`,
+> `prisma.config.ts` or `cucumber.js`.
 
 > **#4. All TypeScript classes, enums, interfaces and types MUST follow the PascalCase naming convention.**
 >
@@ -37,7 +40,8 @@ There are two things hard in programming: cache invalidation and naming things. 
 > - `OrganizationService`
 > - `OfferController`
 > - `CreateRoleRequest`
-> - `SurveyModel`
+>
+> Model classes are the exception, and they are named after the bare entity, such as `Survey` or `Project`.
 
 > **#5. All TypeScript consts and functions MUST follow the camelCase naming convention.**
 >
@@ -46,17 +50,24 @@ There are two things hard in programming: cache invalidation and naming things. 
 > - `createUser()`
 > - `configKey`
 > - `token`
+>
+> Provider arrays, dependency injection tokens and module-level constants MAY follow the UPPER_SNAKE_CASE naming
+> convention instead, for example:
+>
+> - `COMMAND_HANDLERS`
+> - `RESULT_WRITER`
+> - `TOO_MANY_REQUESTS_MESSAGE`
 
 > **#6. Directories that group related NestJS artifacts SHOULD use the resource name in kebab-case.**
 >
 > Directories that group related artifacts with the same type SHOULD be named after the type they represent, in
-> lowercase kebab-case. Examples:
+> lowercase kebab-case and in singular form. Examples:
 >
-> - `users/`
-> - `orders/`
-> - `module/user-role/request`
+> - `user/`
+> - `order/`
+> - `modules/user-role/infra/http/request`
 
-> **#1. Function SHOULD be written with `function` keyword, arrow functions SHOULD be used only as callbacks.**
+> **#7. Function SHOULD be written with `function` keyword, arrow functions SHOULD be used only as callbacks.**
 >
 > ```ts
 > // Good
@@ -78,12 +89,12 @@ There are two things hard in programming: cache invalidation and naming things. 
 >
 > Projects should also follow the Nest.js convention for file naming for gherkin files.
 >
-> In this approach template is defined: `<action>.<domain>.ts` template for the name, where `<action>` is the action name, and
-> `<domain>` is the application domain. Examples:
+> In this approach template is defined: `<domain>.<action>.feature` template for the name, where `<domain>` is the
+> application domain, and `<action>` is the action name. Examples:
 >
-> - `create.user.feature`
-> - `revoke-license.organization.feature`
-> - `copy.user-role.feature`
+> - `user.create.feature`
+> - `organization.revoke-license.feature`
+> - `user-role.copy.feature`
 
 > **#3. Scenario names MUST be a sentence, and MUST follow the user story approach.**
 >
