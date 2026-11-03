@@ -69,15 +69,36 @@ We use a system of prefixes so the author of the code immediately knows how to r
 
 ### How to use it?
 
-When reviewing code on GitHub, append one of the following tags to the very beginning of your comment:
+When reviewing code on GitHub, start your comment with a label in bold, optionally followed by a decoration in
+parentheses, and a colon:
 
-- **`[blocking]`** – Change is required for the code to move forward (e.g., a logical error, broken functionality).
-- **`[non-blocking]`** – A suggestion worth considering, but it does not block the merge.
-- **`[question]`** – A question about the author's intent. It may become blocking if the answer reveals an error.
-- **`[suggestion]`** – A proposal for a better solution, but not mandatory to change.
-- **`[praise]`** – Appreciating a good piece of code! Let's support each other.
-- **`[nitpick]`** – Small detail: typo, formatting, etc. Change it if you have a moment, but don't sweat it.
-- **`[chore]`** – A technical task that needs to be done (e.g., updating dependencies, cleaning config).
+```text
+**<label> (<decoration>):** <subject>
+```
+
+Use one of these labels:
+
+- **`praise`** – Appreciating a good piece of code! Let's support each other.
+- **`nitpick`** – Small detail: typo, formatting, etc. Change it if you have a moment, but don't sweat it.
+- **`suggestion`** – A proposal for a better solution.
+- **`issue`** – A problem in the code, such as a logical error or broken functionality.
+- **`question`** – A question about the author's intent. It may become an issue if the answer reveals an error.
+- **`todo`** – A small, trivial, but necessary change.
+- **`chore`** – A technical task that needs to be done before the merge (e.g., updating dependencies, cleaning config).
+- **`note`** – Something the author should know about, that does not require any change.
+
+Add a decoration to say whether the comment blocks the merge:
+
+- **`(blocking)`** – Change is required for the code to move forward.
+- **`(non-blocking)`** – Worth considering, but it does not block the merge.
+
+Examples:
+
+```text
+**issue (blocking):** This query runs once for every answer. Load all the answers in one query instead.
+**suggestion (non-blocking):** `PickType` would keep this request in sync with the model.
+**nitpick:** Typo in the scenario name.
+```
 
 ### What does it bring us?
 

@@ -13,9 +13,9 @@ An action is a ready-made step that a workflow can use, like `actions/checkout` 
 > **#1. Workflows MUST use only official actions published by GitHub or big, well-known companies, or our own
 > actions.**
 >
-> An action is someone else's code, and it runs on our computer. Our jobs run on self-hosted runners, on machines owned
-> by the organization, like the GI Mac mini. Every action in a job can read the code, the secrets passed to the job and
-> the GitHub token, and it can reach everything the runner can reach.
+> An action is someone else's code, and it runs with access to our code and secrets. Some of our jobs run on
+> self-hosted runners, on machines owned by the organization, like the GI Mac mini. Every action in a job can read the
+> code, the secrets passed to the job and the GitHub token, and it can reach everything the runner can reach.
 >
 > Actions that can be used:
 >
@@ -57,9 +57,11 @@ An action is a ready-made step that a workflow can use, like `actions/checkout` 
 When the same steps are copied between repositories, or there is no official action for the job, organization creates
 its own action. Take a look at the existing ones before creating a new one:
 
+- [bump-version-action](https://github.com/gi-org-pl/bump-version-action)
 - [check-crlf-action](https://github.com/gi-org-pl/check-crlf-action)
 - [check-file-permissions-action](https://github.com/gi-org-pl/check-file-permissions-action)
 - [check-version-action](https://github.com/gi-org-pl/check-version-action)
+- [release-action](https://github.com/gi-org-pl/release-action)
 - [report-tofu-plan-action](https://github.com/gi-org-pl/report-tofu-plan-action)
 
 Each action repository is structured in the same way:
@@ -68,6 +70,7 @@ Each action repository is structured in the same way:
 .
 ├── .github/
 │   ├── workflows/
+│   │   ├── release.yaml
 │   │   └── test.yaml
 │   └── CODEOWNERS
 ├── .gitignore
@@ -79,6 +82,7 @@ Each action repository is structured in the same way:
 
 In the structure as above, each file serves its own purpose:
 
+- `.github/workflows/release.yaml` releases the next version of the action on merge to `main` (see rule #8),
 - `.github/workflows/test.yaml` runs the tests of the action on every pull request,
 - `.github/CODEOWNERS` assigns all files to the `@gi-org-pl/admins` team,
 - `action.yaml` defines the action: its name, description, inputs and steps,
@@ -131,13 +135,18 @@ In the structure as above, each file serves its own purpose:
 >
 > Projects pin the commit of a full version, for example
 > `gi-org-pl/check-version-action@<commit SHA> # v1.2.3` (see [Using actions](#using-actions), rule #4), and
-> Dependabot opens a pull request when a new version is released. Each full version gets its own GitHub release. After
-> the release, move the major tag to the new version, for the workflows that still use tags:
+> Dependabot opens a pull request when a new version is released. Each full version gets its own GitHub release, and the
+> major tag points at the newest full version, for the workflows that still use tags.
+>
+> Versions are released by the `release.yaml` workflow with [release-action](https://github.com/gi-org-pl/release-action),
+> not by hand. Every merge to `main` that changes the action releases the next patch version. To release a minor or
+> major version, run the workflow by hand and choose the part of the version to increase:
 >
 > ```shell
-> git tag v1.2.3 && git push origin v1.2.3
-> git tag -f v1 v1.2.3 && git push -f origin v1
+> gh workflow run release.yaml -f bump=minor
 > ```
+>
+> [See release workflow of check-version-action](https://github.com/gi-org-pl/check-version-action/blob/main/.github/workflows/release.yaml).
 >
 > A breaking change, like a removed or renamed input, MUST be released as a new major version (`v2`).
 
