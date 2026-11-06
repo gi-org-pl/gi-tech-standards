@@ -23,6 +23,7 @@ GitLab, which is another Git service.
 * [First steps](FIRST_STEPS.md) of work with git system
 * *Managing git conflicts* (in progress)
 * Our guidelines about [GitHub Projects](PROJECTS.md)
+* How to change [repository settings](REPOSITORY_SETTINGS.md) (only through admins)
 
 ## FAQ
 
