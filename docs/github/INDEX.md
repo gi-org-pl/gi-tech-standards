@@ -1,7 +1,6 @@
 # Git & Github
 
-*These guidelines ensure a consistent, maintainable, and robust backend codebase across all services developed under
-our organization.*
+*How we use Git and GitHub in all projects of the organization.*
 
 Hello dear volunteer, it's so nice to have you! To help us keep technical standards, please read steps below before
 starting work in any of Generacja Innowacja projects.
@@ -20,13 +19,9 @@ GitLab, which is another Git service.
 
 ## Subsections
 
-* [First steps](FIRST_STEPS.md) of work with git system
-* *Managing git conflicts* (in progress)
-* Our guidelines about [GitHub Projects](PROJECTS.md)
-* How to change [repository settings](REPOSITORY_SETTINGS.md) (only through admins)
-
-## FAQ
-
-Empty — ask a question to expand this section!
-
-[//]: # (Todo: describe merge conflicts)
+* [First steps](FIRST_STEPS.md) - installing and configuring Git (your name, the @gi.org.pl email, signed commits), what
+  your GitHub account needs (2FA, real name), and the everyday commands: clone, commit, branch and rebase.
+* [GitHub Projects](PROJECTS.md) - moving tasks on the board, what to fill in on a pull request, and what is not
+  allowed.
+* [Repository settings](REPOSITORY_SETTINGS.md) - repository and organization settings are managed as code, so only
+  admins change them.
