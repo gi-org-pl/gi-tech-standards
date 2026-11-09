@@ -1,18 +1,21 @@
 # Naming
 
+Our naming convention comes from the approach we already use in our code.
+
 ## Convention
 
-Our naming convention comes from the approach we already use in our code:
+> **#1. Functions and variables MUST be named in camelCase, and React components in PascalCase.**
+>
+> This follows the standard of JavaScript and React.
 
-- `ourFunctions` are defined in JavaScript with camelCase by standard
-- React components are in `PascalCaseComponent`
-- all other entities should be by standard in `kebab-case`
+> **#2. Files and directories MUST be named as in the table below. Anything the table does not list MUST be named in
+> kebab-case.**
 
-## Examples
-
-- domain: `[kebab-case]`
-- component directory: `[PascalCase]`
-- any other directory: `[kebab-case]`
-- component file: `PascalCase.type.ext`
-- asset: `kebab-case.ext`
-- util/hook: `camelCase.ext`
+| Entity              | Pattern               | Example                                            |
+|---------------------|-----------------------|----------------------------------------------------|
+| Domain directory    | `kebab-case`          | `user-profile/`                                    |
+| Component directory | `PascalCase`          | `UserProfileCard/`                                 |
+| Any other directory | `kebab-case`          | `utils/`, `schemas/`                               |
+| Component file      | `PascalCase.type.ext` | `UserProfileCard.tsx`, `UserProfileCard.types.ts`  |
+| Asset               | `kebab-case.ext`      | `arrow-right.svg`, `hero-banner.jpg`               |
+| Util or hook        | `camelCase.ext`       | `formatCurrency.ts`, `useDebounce.ts`              |

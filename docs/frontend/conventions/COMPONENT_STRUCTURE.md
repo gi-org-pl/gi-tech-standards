@@ -1,24 +1,31 @@
-# Component
+# Component structure
 
 ## Convention
 
-1. **Encapsulation:** all types/utils/constants/subcomponents used only in a single component should be placed inside of
-it, if they're shared beetwen components then they should be treated as globals
+> **#1. Encapsulation: types, utils, constants and subcomponents used by only one component MUST be kept in its
+> directory.**
+>
+> Once another component uses them, they are treated as globals and move to the global directories (see
+> [project structure](PROJECT_STRUCTURE.md)).
 
-2. **Minimization:** files/directories from the structure should be create only if they're needed
+> **#2. Minimization: files and directories from the structure below MUST be created only when they are needed.**
+>
+> A component without its own types does not get an empty `ComponentName.types.ts`.
 
-3. **Mirroring:** the structure of the component directories mirrors the real structure of the components
+> **#3. Mirroring: component directories MUST mirror the real structure of the components.**
+>
+> The directory of a subcomponent is kept inside the directory of its parent.
 
 ## Structure
 
 ```txt
 |- [ComponentName]
-    |- ComponentName.tsx               # View file 
+    |- ComponentName.tsx               # View file
     |- ComponentName.test.ts           # Unit tests
-    |- ComponentName.types.ts          # Component-related tests
+    |- ComponentName.types.ts          # Component-related types
     |- ComponentName.constants.ts      # Component-related constants
     |- [utils]                         # Component-related utils/hooks
-        |- getSomeData.ts              
+        |- getSomeData.ts
         |- getSomeData.test.ts
     |- [SubComponent]                  # Subcomponent directory
     |- [OtherSubComponent]             # Subcomponent directory
