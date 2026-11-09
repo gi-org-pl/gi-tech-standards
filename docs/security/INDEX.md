@@ -10,7 +10,8 @@ These standards apply to all backend projects. Each rule describes something tha
 least one of our backend services. Not every project follows every rule yet: new projects MUST follow them from the
 start, and existing projects move towards them.
 
-Keywords like **MUST** and **SHOULD** are used as described in [RFC](/docs/backend/conventions/RFC.md).
+In each document, rules are numbered within each section and written as `> **#1. …**`, with the reason for the rule
+below it. The keywords MUST, SHOULD and MAY are explained in [RFC keywords](../backend/conventions/RFC.md).
 
 ## Reporting a problem
 
@@ -21,34 +22,16 @@ Keywords like **MUST** and **SHOULD** are used as described in [RFC](/docs/backe
 
 ## Topics
 
-> **Secrets** are the keys to everything else. These rules say where secrets are kept, who can see them and how to
-> replace them.
->
-> [Read more about secrets](/docs/security/SECRETS.md)
-
-> **Pipelines** can reach the code, the secrets and the production servers. These rules say what a job can do and what
-> protects the branch it runs from.
->
-> [Read more about pipelines](/docs/security/PIPELINES.md)
-
-> **Dependencies** are code written by other people that runs on our machines. These rules say how they get updated
-> and what they can do during installation.
->
-> [Read more about dependencies](/docs/security/DEPENDENCIES.md)
-
-> **Containers** decide how far an attacker gets after breaking into the application. These rules say how images are
-> built and what a running container can do.
->
-> [Read more about containers](/docs/security/CONTAINERS.md)
-
-> **Infrastructure** covers the OpenTofu state, the network, the database and the permissions of our services.
->
-> [Read more about infrastructure](/docs/security/INFRASTRUCTURE.md)
-
-> **Application** rules cover the code of a service: requests, passwords, sessions and rate limits.
->
-> [Read more about the application](/docs/security/APPLICATION.md)
-
-> **Personal data** rules say what can be logged and what can leave the database in an export.
->
-> [Read more about personal data](/docs/security/PERSONAL_DATA.md)
+- [Secrets](SECRETS.md) - where secrets are kept and how they reach a container, who can read them, keeping them out of
+  AI tools and chats, and rotating them.
+- [Pipelines](PIPELINES.md) - job permissions, `persist-credentials`, production builds without the Docker cache, and
+  protection of the default branch, release tags and forks.
+- [Dependencies](DEPENDENCIES.md) - Dependabot, `npm ci`, `overrides` for vulnerable packages, and install scripts in
+  `allowScripts`.
+- [Containers](CONTAINERS.md) - an unprivileged user, minimal images pinned by digest, a read-only file system without
+  capabilities, and failing on start-up errors.
+- [Infrastructure](INFRASTRUCTURE.md) - encrypted OpenTofu state, no inbound traffic and limited egress, a private
+  database with verified TLS, minimal permissions, and log retention.
+- [Application](APPLICATION.md) - request validation, CORS and `trust proxy`, passwords and sign-in, session tokens and
+  cookies, and rate limits.
+- [Personal data](PERSONAL_DATA.md) - what logs may contain and how long they are kept, and what an export may return.

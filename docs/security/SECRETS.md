@@ -29,8 +29,8 @@ replaced.
 
 > **#5. Containers MUST receive secrets through `secrets` in the task definition, not through `environment`.**
 >
-> Values in `environment` can be read by anyone who can describe the task definition. With `secrets`, the task definition
-> holds only a reference:
+> Values in `environment` can be read by anyone who can describe the task definition. With `secrets`, the task
+> definition holds only a reference:
 >
 > ```hcl
 > secrets = [
@@ -53,7 +53,7 @@ replaced.
 >
 > An AI tool sends what it reads to an external service and keeps it in a transcript. This includes letting an agent
 > open `.env` or `*.tfvars` files, or run a command that prints a secret. Read more about
-> [using AI](/docs/ai/REFLECTIVE_AI_USAGE.md).
+> [using AI](../ai/REFLECTIVE_AI_USAGE.md).
 
 > **#2. A secret seen anywhere it should not be MUST be rotated.**
 >

@@ -70,8 +70,8 @@ Assume that one day someone finds a way to run code in the application. These ru
 
 > **#3. A failed start-up step MUST stop the container.**
 >
-> Start the entrypoint with `set -e`. Otherwise a failed migration, or a database certificate that cannot be verified, is
-> only logged and the application starts anyway. The health check passes, and every query fails. When the container
+> Start the entrypoint with `set -e`. Otherwise a failed migration, or a database certificate that cannot be verified,
+> is only logged and the application starts anyway. The health check passes, and every query fails. When the container
 > stops, the deployment gets rolled back instead.
 >
 > ```shell

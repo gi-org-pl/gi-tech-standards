@@ -5,9 +5,10 @@ standards to check or write code in other repositories, and for agents that edit
 
 ## Reading the standards
 
-- Start at the index of the area: `docs/frontend/INDEX.md`, `docs/backend/INDEX.md`, `docs/github/INDEX.md`,
-  `docs/infrastructure/INDEX.md` or `docs/ai/INDEX.md`. The review process is in `docs/process/CODE_REVIEW.md`. Each
-  index says what every document decides, so open only the documents the task needs.
+- Start at the index of the area: `docs/frontend/INDEX.md`, `docs/backend/INDEX.md`, `docs/security/INDEX.md`,
+  `docs/github/INDEX.md`, `docs/infrastructure/INDEX.md` or `docs/ai/INDEX.md`. The review process is in
+  `docs/process/CODE_REVIEW.md`. Each index says what every document decides, so open only the documents the task
+  needs.
 - A rule is a numbered blockquote, `> **#1. … MUST …**`, followed by the reason for it. Numbers restart in each
   section, so cite a rule by file, section and number, for example `docs/backend/tools/RUNTIME.md`, Docker #3. To list
   every rule of an area: `grep -rn '^> \*\*#' docs/backend`.
@@ -27,4 +28,4 @@ standards to check or write code in other repositories, and for agents that edit
 - Use relative links between documents.
 - Wrap lines at 120 characters. CI runs markdownlint on every pull request: `npx markdownlint-cli '**/*.md'`.
 - `.github/CODEOWNERS` says which team reviews each area: the front-end team owns `docs/frontend/`, the back-end team
-  owns `docs/backend/` and `docs/ai/`.
+  owns `docs/backend/`, `docs/security/` and `docs/ai/`.

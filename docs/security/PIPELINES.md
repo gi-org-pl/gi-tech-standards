@@ -1,6 +1,6 @@
 # Pipelines
 
-The [CI/CD standards](/docs/backend/tools/CI_CD.md) say which actions a workflow can use and how to pin them. The rules
+The [CI/CD standards](../backend/tools/CI_CD.md) say which actions a workflow can use and how to pin them. The rules
 below say what a job can do once it runs, and what protects the branch it runs from.
 
 ## Workflows
@@ -44,8 +44,8 @@ below say what a job can do once it runs, and what protects the branch it runs f
 
 > **#4. Images deployed to production MUST be built without the Docker cache, from a freshly pulled base image.**
 >
-> Self-hosted runners keep their Docker cache between jobs. A layer like `RUN npm ci`, cached by a pull request job, could
-> otherwise end up in the production image. The build gets slower, and that is the price.
+> Self-hosted runners keep their Docker cache between jobs. A layer like `RUN npm ci`, cached by a pull request job,
+> could otherwise end up in the production image. The build gets slower, and that is the price.
 >
 > ```shell
 > docker build --pull --no-cache --target production -t "${IMAGE}:${VERSION}" .

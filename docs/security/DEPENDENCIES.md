@@ -5,8 +5,8 @@ trusted, but all of it has to be kept up to date and watched.
 
 > **#1. Dependabot MUST be configured for every package ecosystem used in the repository.**
 >
-> That usually means `npm`, `github-actions` and `docker`. Dependabot alerts MUST be turned on in the repository settings
-> as well. A daily schedule with one group keeps it to a single pull request:
+> That usually means `npm`, `github-actions` and `docker`. Dependabot alerts MUST be turned on in the repository
+> settings as well. A daily schedule with one group keeps it to a single pull request:
 >
 > ```yaml
 > version: 2
@@ -52,9 +52,9 @@ trusted, but all of it has to be kept up to date and watched.
 
 > **#4. Packages that run install scripts MUST be reviewed and listed in `allowScripts`.**
 >
-> An install script runs with the permissions of whoever installs the package, on a laptop or on a runner, so a malicious
-> package can use one to steal tokens. List an approved package with its exact version, so an update has to be approved
-> again, and deny the scripts that are not needed:
+> An install script runs with the permissions of whoever installs the package, on a laptop or on a runner, so a
+> malicious package can use one to steal tokens. List an approved package with its exact version, so an update has to be
+> approved again, and deny the scripts that are not needed:
 >
 > ```json
 > {

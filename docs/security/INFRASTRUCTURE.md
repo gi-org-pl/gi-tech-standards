@@ -86,8 +86,8 @@ defined in OpenTofu, in the `infra/` directory of each repository.
 >
 > `sslmode=no-verify` encrypts the connection, but it accepts any certificate, so a host that intercepts the connection
 > goes unnoticed. RDS Proxy gets `require_tls = true`, and the database URL ends with both parameters below. `pg`, used
-> for queries, reads `sslmode` and checks the chain and the hostname. The Prisma schema engine, used for migrations, reads
-> `sslaccept`.
+> for queries, reads `sslmode` and checks the chain and the hostname. The Prisma schema engine, used for migrations,
+> reads `sslaccept`.
 >
 > ```text
 > postgresql://<user>:<password>@<host>:5432/<database>?schema=public&sslmode=verify-full&sslaccept=strict

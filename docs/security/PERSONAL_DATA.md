@@ -19,7 +19,7 @@ linked to any of them. The answers given in myPolitics reveal political opinions
 
 > **#3. Logs MUST be kept for as short a time as they are useful.**
 >
-> Our services keep them for 7 days, see [Infrastructure](/docs/security/INFRASTRUCTURE.md#logs).
+> Our services keep them for 7 days, see [Infrastructure](INFRASTRUCTURE.md#logs).
 
 ## Exports
 

@@ -18,11 +18,9 @@ Testing has no document of its own yet. The layout of test directories is in
 
 ## Security
 
-Rules that protect our services and the data they hold apply to every backend project.
-
-> **Security** covers secrets, pipelines, dependencies, containers, infrastructure, application code and personal data.
->
-> [Read more about security standards](/docs/security/INDEX.md)
+Rules that protect our services and the data they hold apply to every backend project. They are in the
+[security standards](../security/INDEX.md): secrets, pipelines, dependencies, containers, infrastructure, application
+code and personal data.
 
 ## Conventions
 

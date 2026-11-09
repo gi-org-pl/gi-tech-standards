@@ -53,9 +53,9 @@ framework.
 > | Tag length  | 32 bytes  |
 > | Salt length | 16 bytes  |
 >
-> Store the hash in the PHC string format, which keeps the parameters next to the hash, so they can be raised later. When
-> the parameters of a stored hash are out of date, hash the password again after a successful sign-in. Compare hashes
-> with `timingSafeEqual`, not with `===`.
+> Store the hash in the PHC string format, which keeps the parameters next to the hash, so they can be raised later.
+> When the parameters of a stored hash are out of date, hash the password again after a successful sign-in. Compare
+> hashes with `timingSafeEqual`, not with `===`.
 
 > **#2. Sign-in MUST NOT reveal whether an account exists.**
 >
@@ -67,14 +67,14 @@ framework.
 
 > **#1. Session tokens MUST be random, and only their hash MUST be stored.**
 >
-> Generate them with `randomBytes(32)` and keep the SHA-256 hash in the database. Someone who reads the database does not
-> get a working session. Every session has an expiry date.
+> Generate them with `randomBytes(32)` and keep the SHA-256 hash in the database. Someone who reads the database does
+> not get a working session. Every session has an expiry date.
 
 > **#2. Session cookies MUST use the `__Host-` prefix, `Secure`, `HttpOnly` and `SameSite=Lax`.**
 >
 > Browsers accept the `__Host-` prefix only with `Secure`, `Path=/` and no `Domain`, so no other subdomain can set the
-> cookie. `HttpOnly` keeps it away from scripts. Local development has no HTTPS, so it uses a name without the prefix and
-> no `Secure`.
+> cookie. `HttpOnly` keeps it away from scripts. Local development has no HTTPS, so it uses a name without the prefix
+> and no `Secure`.
 >
 > ```text
 > __Host-my_service_session=<token>; Max-Age=<seconds>; Path=/; HttpOnly; SameSite=Lax; Secure
