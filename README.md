@@ -27,7 +27,7 @@ To learn more about specific technical standards, refer to the dedicated documen
 - [Backend standards](docs/backend/INDEX.md)
 - [Working with AI standards](docs/ai/INDEX.md)
 - [Git & GitHub way of working](docs/github/INDEX.md)
-- Infrastructure standards **(coming soon)**
+- [Infrastructure standards](docs/infrastructure/INDEX.md) **(in progress)**
 - [Process list](docs/process/DEVELOPMENT_FLOW.md)
 
 ## Researches
