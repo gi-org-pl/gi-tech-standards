@@ -5,7 +5,7 @@ attention of other developers when pull requests are created.
 
 > **#1. Every backend repository MUST contain `CODEOWNERS` file, to prevent editing specific files unintentionally.**
 >
-> This applies to every [project type](/docs/backend/conventions/STRUCTURE.md#project-types), not only to services.
+> This applies to every [project type](STRUCTURE.md#project-types), not only to services.
 > File should be named `CODEOWNERS` and located in the `.github/` directory.
 
 > **#2. By default, all files in backend repositories should be owned by the `@gi-org-pl/backs` team.**

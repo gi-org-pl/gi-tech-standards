@@ -14,7 +14,7 @@ Backend projects come in four types, and each type has its own structure:
 | CLI tool         | A program that people run in their own terminal                | mypolitics-data-exporter       |
 | Scheduled script | A script that a GitHub Actions workflow runs on a schedule     | mypolitics-daily-report-bot    |
 
-> **#1: Each project SHOULD follow the structure of its type.**
+> **#1. Each project SHOULD follow the structure of its type.**
 
 ## Services
 
@@ -47,9 +47,9 @@ In the structure as above, each directory serves its own purpose:
 - `src` directory contains the source code of the application,
 - `test` contains the automated tests and the code required to run them.
 
-> **#2: Other top-level directories MAY be added, if `README.md` or `AGENTS.md` describes what they hold.**
+> **#2. Other top-level directories MAY be added, if `README.md` or `AGENTS.md` describes what they hold.**
 
-> **#3: The `dist` and `node_modules` directory MUST NOT be present in the repository.**
+> **#3. The `dist` and `node_modules` directory MUST NOT be present in the repository.**
 
 ### Tests
 
@@ -75,7 +75,7 @@ tests and `performance` for performance tests. Feature files are grouped by modu
 - `_context` contains the step definitions, one directory per suite,
 - `_helper` contains the code shared by the steps, such as matchers and fixtures.
 
-> **#4: Tests MUST be kept in `test/<suite>/` directories.**
+> **#4. Tests MUST be kept in `test/<suite>/` directories.**
 >
 > Older projects with only one suite of functional tests MAY keep it in a top-level `features/` directory.
 
@@ -97,13 +97,13 @@ Source code is divided into the following directories:
 - `core` contains the core app features, that are not related to any specific module (domain),
 - `modules` contains the application modules — the domain-specific features.
 
-> **#5: Only `core/` and `modules/` directories SHOULD be present in the `./src/` directory.**
+> **#5. Only `core/` and `modules/` directories SHOULD be present in the `./src/` directory.**
 
-> **#6: No files SHOULD be present in the `./src/` directory directly, except for the `app.module.ts` and `main.ts` file.**
+> **#6. No files SHOULD be present in the `./src/` directory directly, except for the `app.module.ts` and `main.ts` file.**
 
-> **#7: Application entrypoint SHOULD be present in the `./src/` directory, and it SHOULD be named `main.ts`.**
+> **#7. Application entrypoint SHOULD be present in the `./src/` directory, and it SHOULD be named `main.ts`.**
 
-> **#8: The `app.module.ts` file SHOULD be present in the `src` directory.**
+> **#8. The `app.module.ts` file SHOULD be present in the `src` directory.**
 
 #### Core
 
@@ -126,7 +126,7 @@ An example directory structure looks like that:
         └── survey/
 ```
 
-> **#9: Directories under the `./src/modules` directory SHOULD be named after the domain they represent.**
+> **#9. Directories under the `./src/modules` directory SHOULD be named after the domain they represent.**
 >
 > It is RECOMMENDED to use the singular form of the domain name, and it is also RECOMMENDED to use single-word names.
 

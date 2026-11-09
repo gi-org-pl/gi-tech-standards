@@ -23,12 +23,12 @@ These standards apply to:
 
 To learn more about specific technical standards, refer to the dedicated documents below:
 
-- [Frontend standards](docs/frontend/INDEX.md)
-- [Backend standards](docs/backend/INDEX.md)
-- [Working with AI standards](docs/ai/INDEX.md)
-- [Git & GitHub way of working](docs/github/INDEX.md)
-- [Infrastructure standards](docs/infrastructure/INDEX.md) **(in progress)**
-- [Process list](docs/process/DEVELOPMENT_FLOW.md)
+- [Frontend standards](docs/frontend/INDEX.md) - stack, project and component structure, naming and testing
+- [Backend standards](docs/backend/INDEX.md) - runtime, code quality, CI/CD, project structure, naming and code owners
+- [Working with AI standards](docs/ai/INDEX.md) - reflective use of AI, data safety and ethics
+- [Git & GitHub way of working](docs/github/INDEX.md) - Git setup, signed commits, GitHub Projects, repository settings
+- [Infrastructure standards](docs/infrastructure/INDEX.md) **(in progress)** - Cloudflare, DNS records included
+- [Code review process](docs/process/CODE_REVIEW.md) - opening a pull request, the review steps, Conventional Comments
 
 ## Researches
 
