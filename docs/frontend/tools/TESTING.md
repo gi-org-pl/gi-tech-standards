@@ -2,17 +2,23 @@
 
 ## Approach
 
-We follow a **test pyramid** strategy: many unit tests and minimal
-end-to-end tests. This approach ensures fast feedback loops while maintaining confidence in our code quality.
+We follow a **test pyramid** strategy: many unit tests and minimal end-to-end tests. This approach ensures fast
+feedback loops while maintaining confidence in our code quality. All tests follow the
+[testing convention](../conventions/TESTING_CONVENTION.md).
 
 ## Unit Testing
 
-**Tools**: Vitest + React Test Renderer + @testing-library/react
+Unit tests are the foundation of our testing strategy. They run quickly and provide immediate feedback during
+development.
 
-**Target Coverage**: 95-100%
+> **#1. Unit tests MUST be written with Vitest, React Testing Library and React Test Renderer.**
 
-Unit tests are the foundation of our testing strategy. They run quickly and provide immediate feedback during development.
-We aim for high coverage to ensure that individual components and functions work correctly in isolation.
+> **#2. Unit tests SHOULD cover at least 95% of the code.**
+>
+> We aim for high coverage to ensure that individual components and functions work correctly in isolation.
+
+> **#3. A unit test MUST be kept next to the file it tests, with the same name and a `.test.ts` or `.test.tsx`
+> extension.**
 
 - [Vitest documentation](https://vitest.dev/)
 - [Testing Library documentation](https://testing-library.com/)
@@ -20,16 +26,13 @@ We aim for high coverage to ensure that individual components and functions work
 
 ## End-to-End Testing
 
-**Tools**: Playwright + Gherkin
+> **#1. End-to-end tests MUST be written with Playwright and Gherkin.**
 
-**Target Coverage**: All happy paths
-
-E2E tests validate complete user workflows and ensure that the application works correctly from the user's perspective.
-We focus on testing critical happy paths rather than exhaustive edge cases, which are better covered by unit tests.
+> **#2. End-to-end tests MUST cover all happy paths.**
+>
+> E2E tests validate complete user workflows and ensure that the application works correctly from the user's
+> perspective. We focus on testing critical happy paths rather than exhaustive edge cases, which are better covered by
+> unit tests. End-to-end tests are kept in `e2e/` (see [project structure](../conventions/PROJECT_STRUCTURE.md)).
 
 - [Playwright documentation](https://playwright.dev/)
 - [Gherkin syntax guide](https://cucumber.io/docs/gherkin/)
-
-## Resources
-
-- [Testing Convention](../conventions/TESTING_CONVENTION.md)
