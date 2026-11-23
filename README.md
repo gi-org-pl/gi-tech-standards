@@ -27,7 +27,8 @@ To learn more about specific technical standards, refer to the dedicated documen
 - [Backend standards](docs/backend/INDEX.md) - runtime, code quality, CI/CD, project structure, naming and code owners
 - [Security standards](docs/security/INDEX.md) - secrets, pipelines, dependencies, containers, infrastructure,
   application code and personal data
-- [Working with AI standards](docs/ai/INDEX.md) - reflective use of AI, data safety and ethics
+- [Working with AI standards](docs/ai/INDEX.md) - reflective use of AI, data safety and ethics, and the setup of AI
+  agents in repositories
 - [Git & GitHub way of working](docs/github/INDEX.md) - Git setup, signed commits, GitHub Projects, repository settings
 - [Infrastructure standards](docs/infrastructure/INDEX.md) **(in progress)** - Cloudflare, DNS records included
 - [Code review process](docs/process/CODE_REVIEW.md) - opening a pull request, the review steps, Conventional Comments
