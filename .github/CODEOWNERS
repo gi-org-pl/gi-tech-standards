@@ -10,5 +10,6 @@
 
 # Config files reviewed by admins and Head of Engineering
 /.github/       @gi-org-pl/admins ob@gi.org.pl
+/CLAUDE.md      @gi-org-pl/admins ob@gi.org.pl
 *.json          @gi-org-pl/admins ob@gi.org.pl
 *.yaml          @gi-org-pl/admins ob@gi.org.pl
